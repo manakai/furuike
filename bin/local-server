@@ -1,0 +1,3 @@
+basename=`dirname $0`/..
+exec $basename/plackup $basename/bin/server.psgi \
+    -p 5793 -s Twiggy
