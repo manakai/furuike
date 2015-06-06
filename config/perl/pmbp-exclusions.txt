@@ -1,0 +1,11 @@
+- "../../modules/charclass" tests build
+- "../../modules/web-url" tests build
+- "../../modules/web-encodings" tests build
+- "../../modules/twiggy-packed" tests
+- "../../modules/wanage" tests mp datetime build
+- "../../modules/promise" tests
+- "../../modules/promised-file" tests
+- "../../modules/promised-command" tests
+- "../../t_deps/modules/test-x1" tests
+- "../../t_deps/modules/promised-plackup" tests
+- "../../t_deps/modules/web-ua" tests anyeventsocks cli curl lwp oauth testws wsse

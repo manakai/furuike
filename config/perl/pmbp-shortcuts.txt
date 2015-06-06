@@ -1,0 +1,4 @@
+@perl
+@prove
+@plackup=modules/twiggy-packed/script/plackup
+@local-server=bin/local-server
