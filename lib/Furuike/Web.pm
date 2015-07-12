@@ -48,15 +48,58 @@ sub redirect ($$$) {
   access_log $http, $status, 'Redirect';
 } # redirect
 
-sub send_file ($$) {
-  my ($http, $file) = @_;
+my $ExtToMIMEType = {
+  'html' => 'text/html',
+  'txt' => 'text/plain',
+  'css' => 'text/css',
+  'js' => 'text/javascript',
+  'json' => 'application/json',
+  'png' => 'image/png',
+  'jpeg' => 'image/jpeg',
+  'gif' => 'image/gif',
+  'ico' => 'image/vnd.microsoft.icon',
+};
+
+my $CharsetTypeByMIMEType = {
+  'text/html' => 'default',
+  'text/plain' => 'default',
+  'text/css' => 'default',
+  'text/javascript' => 'default',
+  'text/xml' => 'default',
+  'application/xml' => 'default',
+  'application/json' => 'utf-8',
+};
+
+sub send_file ($$$) {
+  my ($http, $path, $file) = @_;
   # XXX if large file
   return $file->stat->then (sub {
     my $mtime = $_[0]->[9];
     return $file->read_byte_string->then (sub {
       $http->set_status (200);
       $http->set_response_last_modified ($mtime);
-      #$http->set_response_header ('Content-Type' => 'text/plain; charset=utf-8');
+      if ($path->basename =~ /\.([^.]+)\z/) {
+        my $ext = $1;
+        my $type = $ExtToMIMEType->{$ext};
+        if (defined $type) {
+          my $charset;
+          my $charset_type = $CharsetTypeByMIMEType->{$type};
+          if (defined $charset_type and $charset_type eq 'default') {
+            $charset = 'utf-8';
+          } elsif (defined $charset_type and $charset_type eq 'utf-8') {
+            $charset = 'utf-8';
+          } elsif ($charset_type =~ m{\+xml\z}) {
+            $charset = 'utf-8';
+          } elsif ($charset_type =~ m{\+json\z}) {
+            $charset = 'utf-8';
+          }
+          if (defined $charset) {
+            $http->set_response_header ('Content-Type' => "$type; charset=$charset");
+          } else {
+            $http->set_response_header ('Content-Type' => $type);
+          }
+        }
+      }
       $http->send_response_body_as_ref (\($_[0]));
       $http->close_response_body;
       access_log $http, 200, 'File';
@@ -154,7 +197,7 @@ sub psgi_app ($$) {
               } else { # last segment
                 return $f->is_file->then (sub {
                   if ($_[0]) {
-                    return send_file $http, $f;
+                    return send_file $http, $p, $f;
                   } else {
                     return $f->is_directory->then (sub {
                       if ($_[0]) {

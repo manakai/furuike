@@ -19,6 +19,7 @@ test {
         my $res = $_[0];
         test {
           is $res->code, 200;
+          is $res->header ('Content-Type'), q{text/html; charset=utf-8};
           like $res->header ('Last-Modified'), qr{GMT};
           unlike $res->header ('Last-Modified'), qr{ 1970 };
           like $res->content, qr{</ul>};
@@ -29,7 +30,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 2 * 4, name => 'document root, empty';
+} n => 2 * 5, name => 'document root, empty';
 
 test {
   my $c = shift;
@@ -56,6 +57,7 @@ test {
             is $res->header ('Last-Modified'), undef;
           } else {
             is $res->code, 200;
+            is $res->header ('Content-Type'), q{text/html; charset=utf-8};
             like $res->header ('Last-Modified'), qr{GMT};
             unlike $res->header ('Last-Modified'), qr{ 1970 };
             like $res->content, qr{</ul>};
@@ -67,7 +69,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 3 * 1 + 4 * 3, name => 'directory';
+} n => 3 * 1 + 5 * 3, name => 'directory';
 
 test {
   my $c = shift;

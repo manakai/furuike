@@ -11,6 +11,9 @@ for my $path (
   q</!-$>,
   q</%%>,
   q</ho//>,
+  q</foo.txt>,
+  q</foo.html>,
+  q</favicon.ico>,
 ) {
   test {
     my $c = shift;

@@ -28,7 +28,7 @@ test {
           is $res->code, 200;
           like $res->header ('Last-Modified'), qr{GMT};
           unlike $res->header ('Last-Modified'), qr{ 1970 };
-          #is $res->header ('Content-Type'), q{text/plain; charset=utf-8};
+          is $res->header ('Content-Type'), q{text/plain; charset=utf-8};
           is $res->content, q{abc
 あいうえお
 };
@@ -49,6 +49,7 @@ test {
         my $res = $_[0];
         test {
           is $res->code, 404;
+          is $res->header ('Content-Type'), 'text/plain; charset=utf-8';
           is $res->content, q{404 Directory not found};
         } $c, name => $x->[1] // $x->[0];
       });
@@ -57,7 +58,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 4 * 4 + 6 * 2;
+} n => 5 * 4 + 6 * 3;
 
 test {
   my $c = shift;
@@ -79,7 +80,7 @@ test {
         my $res = $_[0];
         test {
           is $res->code, 200;
-          #is $res->header ('Content-Type'), q{text/plain; charset=utf-8};
+          is $res->header ('Content-Type'), q{text/plain; charset=utf-8};
           is $res->content, q{abc
 あいうえお
 };
@@ -98,6 +99,7 @@ test {
         my $res = $_[0];
         test {
           is $res->code, 404;
+          is $res->header ('Content-Type'), 'text/plain; charset=utf-8';
           like $res->content, qr{^404 (?:Directory not found|Bad path)$};
         } $c, name => $x->[1] // $x->[0];
       });
@@ -106,7 +108,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 3 * 2 + 4 * 2;
+} n => 3 * 3 + 4 * 3;
 
 test {
   my $c = shift;
@@ -239,6 +241,44 @@ test {
     })->then (sub { done $c; undef $c });
   });
 } n => 3 * 2 + 4 * 1, name => 'unreadable file';
+
+test {
+  my $c = shift;
+  server ({
+    'foo.txt' => qq{abc\xFE\x80\x12\x90\x00},
+    'foo.html' => qq{abc\xFE\x80\x12\x90\x00},
+    'bar/foo.js' => qq{abc\xFE\x80\x12\x90\x00},
+    'bar/foo.png' => qq{abc\xFE\x80\x12\x90\x00},
+    'bar/foo.json' => qq{abc\xFE\x80\x12\x90\x00},
+    'bar/foo' => qq{abc\xFE\x80\x12\x90\x00},
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      ['/foo.txt', 'text/plain; charset=utf-8'],
+      ['/foo.html', 'text/html; charset=utf-8'],
+      ['/bar/foo.js', 'text/javascript; charset=utf-8'],
+      ['/bar/foo.js?hoge.html', 'text/javascript; charset=utf-8'],
+      ['/bar/foo.png', 'image/png'],
+      ['/bar/foo.json', 'application/json; charset=utf-8'],
+      ['/bar/foo', undef],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          is $res->header ('Content-Type'), $x->[1];
+          is $res->content, qq{abc\xFE\x80\x12\x90\x00};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 3 * 7;
 
 run_tests;
 

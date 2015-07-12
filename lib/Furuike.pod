@@ -1,0 +1,101 @@
+=head1 NAME
+
+Furuike - A static file Web server
+
+=head1 DESCRIPTION
+
+Furuike is a Web server, which can serve static files on the local
+file system.
+
+=head1 URL-TO-FILE MAPPING
+
+The path component of the effective request URL is mapped to a file or
+a directory, using the rules described in this section.  The scheme,
+authority, and query components of the effective request URL are
+ignored.
+
+The server script must be executed with the C<FURUIKE_DOCUMENT_ROOT>
+environment variable, whose value is the path to the "document root"
+directory in the local file system.  It should be an absolute path.
+Anything under the document root directory is considered as part of
+the Web server.  No confidental data should be put within that
+directory.
+
+Any non-final path segment must match to the regular expression
+C<\A[A-Za-z0-9_-][A-Za-z0-9_.-]*\z>.  The final path segment must
+match to the regular expression or the empty string.  If there is an
+invalid path segment in the effective request URL, a 404 or 400
+response is returned.
+
+The path component is interpreted as the path to the file or directory
+in the document root.  Any non-final path segment must identify a
+directory.  The final path segment must identify a file or directory.
+If the final path segment is the empty string, it must identify a
+directory.  No symbolic link is followed.  If the specified file or
+directory is not found or not of intended type, a 404 response is
+returned.
+
+If the final path segment is the empty string and identifies a
+directory (e.g. C</path/to/directory/>), a simple HTML document
+representing the list of the files and the directories in the
+directory is returned.
+
+If the final path segment is not the empty string and identifies a
+directory (e.g. C</path/to/directory>), a 301 response redirecting to
+the path with a trailing C</> character (e.g. C</path/to/directory/>)
+is returned.
+
+If the final path segment is not the empty string and identifies a
+file (e.g. C</path/to/file>), the content of the file is returned.
+
+=head1 MIME TYPES
+
+The MIME type of a file response (i.e. the C<Content-Type:> header
+value) is determined by the file name extension.  There are following
+built-in extension-to-MIME-type mapping rules:
+
+  html text/html
+  txt  text/plain
+  css  text/css
+  js   text/javascript
+  json application/json
+  png  image/png
+  jpeg image/jpeg
+  gif  image/gif
+  ico  image/vnd.microsoft.icon
+
+If no mapping is found, no C<Content-Type:> header is set.
+
+For following MIME types, C<charset=utf-8> parameter is set:
+
+  application/json */*+json
+
+For following MIME types, the default C<charset> value is set to the
+C<charset> parameter:
+
+  text/html text/css text/javascript text/xml application/xml */*+xml
+
+The default for the default C<charset> value is C<utf-8>.
+
+=head1 DEPENDENCY
+
+Perl 5.10 or later is required.
+
+This is a PSGI application.  It requires a PSGI-compliant server.  It
+should be an L<AnyEvent>-compatible server, such as L<Twiggy>.
+
+It requires various submodules.  It also requires L<AnyEvent>,
+L<IO::AIO>, and L<Path::Tiny>.
+
+=head1 AUTHOR
+
+Wakaba <wakaba@suikawiki.org>.
+
+=head1 LICENSE
+
+Copyright 2015 Wakaba <wakaba@suikawiki.org>.
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+=cut
