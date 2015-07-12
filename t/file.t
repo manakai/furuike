@@ -26,6 +26,8 @@ test {
         my $res = $_[0];
         test {
           is $res->code, 200;
+          like $res->header ('Last-Modified'), qr{GMT};
+          unlike $res->header ('Last-Modified'), qr{ 1970 };
           #is $res->header ('Content-Type'), q{text/plain; charset=utf-8};
           is $res->content, q{abc
 あいうえお
@@ -55,7 +57,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 4 * 2 + 6 * 2;
+} n => 4 * 4 + 6 * 2;
 
 test {
   my $c = shift;

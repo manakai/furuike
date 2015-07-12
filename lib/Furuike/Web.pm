@@ -51,12 +51,16 @@ sub redirect ($$$) {
 sub send_file ($$) {
   my ($http, $file) = @_;
   # XXX if large file
-  return $file->read_byte_string->then (sub {
-    $http->set_status (200);
-    #$http->set_response_header ('Content-Type' => 'text/plain; charset=utf-8');
-    $http->send_response_body_as_ref (\($_[0]));
-    $http->close_response_body;
-    access_log $http, 200, 'File';
+  return $file->stat->then (sub {
+    my $mtime = $_[0]->[9];
+    return $file->read_byte_string->then (sub {
+      $http->set_status (200);
+      $http->set_response_last_modified ($mtime);
+      #$http->set_response_header ('Content-Type' => 'text/plain; charset=utf-8');
+      $http->send_response_body_as_ref (\($_[0]));
+      $http->close_response_body;
+      access_log $http, 200, 'File';
+    });
   });
 } # send_file
 
@@ -70,37 +74,41 @@ sub send_directory ($$$$) {
     };
   })->then (sub {
     my $names = $_[0];
-    $http->set_status (200);
-    $http->set_response_header ('Content-Type' => 'text/html; charset=utf-8');
-    my $dir_name = $path->basename;
-    my $x = '';
-    my $n = @$path_segments - 3;
-    my $t = sprintf q{
-      <!DOCTYPE HTML><title>%s</title><h1><a href=/ rel=top><code>%s</code></a>%s</h1>
-      <ul>
-        %s
-      </ul>
-    },
-        htescape (join '/', @$path_segments),
-        htescape ($http->url->{host}.':'.$http->url->{port}),
-        (join '/', map {
-          $x .= percent_encode_c ($_) . '/';
-          if (length $_) {
-            sprintf q{<a href="%s" rel="%s"><code>%s</code></a>},
-                htescape $x,
-                (join ' ', ('up') x $n--) || 'self',
-                htescape $_;
-          } else {
-            '';
-          }
-        } @$path_segments),
-        (join '', map {
-          sprintf '<li><a href="%s"><code>%s</code></a>',
-              htescape $_, htescape $_;
-        } @$names);
-    $http->send_response_body_as_text ($t);
-    $http->close_response_body;
-    access_log $http, 200, 'Directory';
+    return $file->stat->then (sub {
+      my $mtime = $_[0]->[9];
+      $http->set_status (200);
+      $http->set_response_last_modified ($mtime);
+      $http->set_response_header ('Content-Type' => 'text/html; charset=utf-8');
+      my $dir_name = $path->basename;
+      my $x = '';
+      my $n = @$path_segments - 3;
+      my $t = sprintf q{
+        <!DOCTYPE HTML><title>%s</title><h1><a href=/ rel=top><code>%s</code></a>%s</h1>
+        <ul>
+          %s
+        </ul>
+      },
+          htescape (join '/', @$path_segments),
+          htescape ($http->url->{host}.':'.$http->url->{port}),
+          (join '/', map {
+            $x .= percent_encode_c ($_) . '/';
+            if (length $_) {
+              sprintf q{<a href="%s" rel="%s"><code>%s</code></a>},
+                  htescape $x,
+                  (join ' ', ('up') x $n--) || 'self',
+                  htescape $_;
+            } else {
+              '';
+            }
+          } @$path_segments),
+          (join '', map {
+            sprintf '<li><a href="%s"><code>%s</code></a>',
+                htescape $_, htescape $_;
+          } @$names);
+      $http->send_response_body_as_text ($t);
+      $http->close_response_body;
+      access_log $http, 200, 'Directory';
+    });
   });
 } # send_directory
 
