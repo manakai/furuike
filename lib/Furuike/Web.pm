@@ -3,8 +3,19 @@ use strict;
 use warnings;
 use Wanage::HTTP;
 use Wanage::URL;
+use AnyEvent::IO;
 use Promise;
 use Promised::File;
+
+sub htescape ($) {
+  return $_[0] unless $_[0] =~ /[&<>"]/;
+  my $e = $_[0];
+  $e =~ s/&/&amp;/g;
+  $e =~ s/</&lt;/g;
+  $e =~ s/>/&gt;/g;
+  $e =~ s/"/&quot;/g;
+  return $e;
+} # htescape
 
 sub access_log ($$$) {
   my ($http, $status, $type) = @_;
@@ -32,12 +43,7 @@ sub redirect ($$$) {
   $http->set_status ($status);
   $http->set_response_header ('Location' => $url);
   $http->set_response_header ('Content-Type' => 'text/html; charset=utf-8');
-  my $eurl = $url;
-  $eurl =~ s/&/&amp;/g;
-  $eurl =~ s/</&lt;/g;
-  $eurl =~ s/>/&gt;/g;
-  $eurl =~ s/"/&quot;/g;
-  $http->send_response_body_as_ref (\sprintf q{<!DOCTYPE html><title>Redirect</title><a href="%s">Next</a>}, $eurl);
+  $http->send_response_body_as_ref (\sprintf q{<!DOCTYPE html><title>Redirect</title><a href="%s">Next</a>}, htescape $url);
   $http->close_response_body;
   access_log $http, $status, 'Redirect';
 } # redirect
@@ -54,13 +60,48 @@ sub send_file ($$) {
   });
 } # send_file
 
-sub send_directory ($$) {
-  my ($http, $directory) = @_;
-  $http->set_status (200);
-  #$http->set_response_header ('Content-Type' => 'text/plain; charset=utf-8');
-  $http->send_response_body_as_ref (\'Directory');
-  $http->close_response_body;
-  access_log $http, 200, 'Directory';
+sub send_directory ($$$$) {
+  my ($http, $path_segments, $path, $file) = @_;
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    aio_readdir $path, sub {
+      my ($names) = @_ or return $ng->($!);
+      return $ok->($names);
+    };
+  })->then (sub {
+    my $names = $_[0];
+    $http->set_status (200);
+    $http->set_response_header ('Content-Type' => 'text/html; charset=utf-8');
+    my $dir_name = $path->basename;
+    my $x = '';
+    my $n = @$path_segments - 3;
+    my $t = sprintf q{
+      <!DOCTYPE HTML><title>%s</title><h1><a href=/ rel=top><code>%s</code></a>%s</h1>
+      <ul>
+        %s
+      </ul>
+    },
+        htescape (join '/', @$path_segments),
+        htescape ($http->url->{host}.':'.$http->url->{port}),
+        (join '/', map {
+          $x .= percent_encode_c ($_) . '/';
+          if (length $_) {
+            sprintf q{<a href="%s" rel="%s"><code>%s</code></a>},
+                htescape $x,
+                (join ' ', ('up') x $n--) || 'self',
+                htescape $_;
+          } else {
+            '';
+          }
+        } @$path_segments),
+        (join '', map {
+          sprintf '<li><a href="%s"><code>%s</code></a>',
+              htescape $_, htescape $_;
+        } @$names);
+    $http->send_response_body_as_text ($t);
+    $http->close_response_body;
+    access_log $http, 200, 'Directory';
+  });
 } # send_directory
 
 sub psgi_app ($$) {
@@ -70,7 +111,7 @@ sub psgi_app ($$) {
     return $http->send_response (onready => sub {
 
       my $path = $http->url->{path};
-      my @path = map { percent_decode_c $_ } split m{/}, $path, -1;
+      my @p = my @path = map { percent_decode_c $_ } split m{/}, $path, -1;
       shift @path if @path > 1;
 
       my $p = $docroot;
@@ -82,7 +123,7 @@ sub psgi_app ($$) {
           $f ||= Promised::File->new_from_path ($p);
           return $f->is_directory->then (sub {
             if ($_[0]) {
-              return send_directory $http, $f;
+              return send_directory $http, \@p, $p, $f;
             } else {
               return not_found $http, 'Directory not found';
             }

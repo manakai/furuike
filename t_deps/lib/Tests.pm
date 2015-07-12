@@ -62,6 +62,9 @@ sub server (;$%) {
             die $_[0] unless $_[0]->exit_code == 0;
           });
         });
+      } elsif (ref $files->{$name} eq 'HASH' and
+               $files->{$name}->{directory}) {
+        return $f->mkpath;
       } else {
         return $f->write_byte_string ($files->{$name});
       }
