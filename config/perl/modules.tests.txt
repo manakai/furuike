@@ -1,3 +1,4 @@
 AnyEvent
+File::Temp
 Path::Tiny
 Test::More

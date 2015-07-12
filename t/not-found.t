@@ -4,30 +4,30 @@ use Path::Tiny;
 use lib path (__FILE__)->parent->parent->child ('t_deps/lib')->stringify;
 use Tests;
 
-my $server = web_server;
-
 for my $path (
   q</notfoind>,
   q</not/found>,
-  q<//hoge>,
+  #q<//hoge>,
   q</!-$>,
   q</%%>,
   q</ho//>,
 ) {
   test {
     my $c = shift;
-    my $host = $c->received_data->{host};
-    GET ($c, $path)->then (sub {
-      my $res = $_[0];
-      test {
-        is $res->code, 404;
-        is $res->header ('Content-Type'), q{text/plain; charset=utf-8};
-        is $res->content, q{404 Not Found};
-      } $c;
-      done $c;
-      undef $c;
+    server->then (sub {
+      my $server = $_[0];
+      return GET ($server, $path)->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 404;
+          is $res->header ('Content-Type'), q{text/plain; charset=utf-8};
+          like $res->content, qr{^404 (File not found|Directory not found|Bad path)$};
+        } $c;
+      })->then (sub {
+        return $server->stop;
+      })->then (sub { done $c; undef $c });
     });
-  } wait => $server, n => 3, name => $path;
+  } n => 3, name => $path;
 }
 
 for my $path (
@@ -36,20 +36,21 @@ for my $path (
 ) {
   test {
     my $c = shift;
-    my $host = $c->received_data->{host};
-    GET ($c, $path)->then (sub {
-      my $res = $_[0];
-      test {
-        like $res->code, qr{^40[04]$};
-      } $c;
-      done $c;
-      undef $c;
+    server->then (sub {
+      my $server = $_[0];
+      return GET ($server, $path)->then (sub {
+        my $res = $_[0];
+        test {
+          like $res->code, qr{^40[04]$};
+        } $c;
+      })->then (sub {
+        return $server->stop;
+      })->then (sub { done $c; undef $c });
     });
-  } wait => $server, n => 1, name => $path;
+  } n => 1, name => $path;
 }
 
 run_tests;
-stop_servers;
 
 =head1 LICENSE
 
