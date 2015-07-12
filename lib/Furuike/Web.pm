@@ -58,6 +58,7 @@ my $ExtToMIMEType = {
   'jpeg' => 'image/jpeg',
   'gif' => 'image/gif',
   'ico' => 'image/vnd.microsoft.icon',
+  'pdf' => 'application/pdf',
 };
 
 my $CharsetTypeByMIMEType = {
