@@ -63,6 +63,7 @@ built-in extension-to-MIME-type mapping rules:
   jpeg image/jpeg
   gif  image/gif
   ico  image/vnd.microsoft.icon
+  pdf  application/pdf
 
 If no mapping is found, no C<Content-Type:> header is set.
 
@@ -79,7 +80,7 @@ The default for the default C<charset> value is C<utf-8>.
 
 =head1 DEPENDENCY
 
-Perl 5.10 or later is required.
+Perl 5.14 or later is required.
 
 This is a PSGI application.  It requires a PSGI-compliant server.  It
 should be an L<AnyEvent>-compatible server, such as L<Twiggy>.
