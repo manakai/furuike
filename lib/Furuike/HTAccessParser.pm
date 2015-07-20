@@ -25,11 +25,11 @@ sub parse_char_string ($$) {
   for (split /\x0A/, $s) {
     if (/^\s*#/) {
       #
-    } elsif ($in_mod and m{^</IfModule>$}) {
+    } elsif ($in_mod and m{^\s*</IfModule>\s*$}) {
       $in_mod = 0;
     } elsif ($in_mod) {
       #
-    } elsif (/^([A-Za-z0-9]+)\s+(.+)$/) {
+    } elsif (/^\s*([A-Za-z0-9]+)\s+(.+)$/) {
       my $name = $1;
       my $args = $2;
       my $parser = $DirectiveParsers->{$name};
@@ -38,7 +38,7 @@ sub parse_char_string ($$) {
       } else {
         $onerror->(level => 'm', type => 'htaccess:unknown directive', value => $name);
       }
-    } elsif (m{^<IfModule\s+([^<>]+)>$}) {
+    } elsif (m{^\s*<IfModule\s+([^<>]+)>\s*$}) {
       $onerror->(level => 'w', type => 'htaccess:IfModule', value => $1);
       $in_mod = 1;
     } elsif (/\S/) {
@@ -81,10 +81,10 @@ $DirectiveParsers->{AddEncoding} =
 $DirectiveParsers->{AddLanguage} =
 $DirectiveParsers->{AddCharset} = sub {
   my ($self, $name, $args) = @_;
-  if ($args =~ m{^\s*(\S+)\s+(\S+(?:\s+\S+)*)\s*$}) {
+  if ($args =~ m{^\s*([A-Za-z0-9_.+:/-]+)\s+(\S+(?:\s+\S+)*)\s*$}) {
     my $type = $1;
     my $exts = [grep { length } map { s/^\.//; $_ } split /\s+/, $2];
-    push @{$self->{data}->{$name} ||= []}, {type => $type, exts => $2};
+    push @{$self->{data}->{$name} ||= []}, {type => $type, exts => $exts};
   } else {
     $self->onerror->(level => 'm', type => 'htaccess:Add:syntax error', value => $args);
   }

@@ -95,6 +95,7 @@ test {
 <IfModule dummy>
 abc
 </IfModule>
+AddLanguage ja .ja 
     },
     'foo' => q{aa},
   })->then (sub {
@@ -118,6 +119,33 @@ abc
     })->then (sub { done $c; undef $c });
   });
 } n => 1 * 2, name => '.htaccess ignored';
+
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{AddLanguage foo .foo},
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 500;
+          is $res->header ('Content-Type'), q{text/plain; charset=utf-8};
+          is $res->content, q{500 Server error};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 3 * 1, name => 'Bad AddLanguage';
 
 run_tests;
 

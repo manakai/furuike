@@ -84,6 +84,7 @@ my $CharsetTypeByMIMEType = {
   'text/javascript' => 'default',
   'text/xml' => 'default',
   'application/xml' => 'default',
+  'text/cache-manifest' => 'utf-8',
   'application/json' => 'utf-8',
 };
 
@@ -98,27 +99,32 @@ my $ExtToEncoding = {
   'gz' => 'gzip',
 };
 
-sub file_name_to_metadata ($) {
+sub file_name_to_metadata ($$) {
+  my $config = $_[0];
+
   # {base_name}.{lang}.{type}.{charset}.{encoding}
 
-  my $file = {file_name => $_[0], suffixes => []};
+  my $file = {file_name => $_[1], suffixes => []};
 
-  my @suffix = split /\./, $_[0], -1;
+  my @suffix = split /\./, $_[1], -1;
   $file->{base_name} = shift @suffix;
 
-  if (@suffix and $ExtToEncoding->{$suffix[-1]}) {
+  if (@suffix and my $type = $config->{ext_to_encoding}->{$suffix[-1]}) {
     unshift @{$file->{suffixes}}, $suffix[-1];
-    $file->{encoding} = $ExtToEncoding->{pop @suffix};
+    $file->{encoding} = $type;
+    pop @suffix;
   }
 
-  if (@suffix and $ExtToCharset->{$suffix[-1]}) {
+  if (@suffix and my $type = $config->{ext_to_charset}->{$suffix[-1]}) {
     unshift @{$file->{suffixes}}, $suffix[-1];
-    $file->{charset} = $ExtToCharset->{pop @suffix};
+    $file->{charset} = $type;
+    pop @suffix;
   }
 
-  if (@suffix and $ExtToMIMEType->{$suffix[-1]}) {
+  if (@suffix and my $type = $config->{ext_to_mime_type}->{$suffix[-1]}) {
     unshift @{$file->{suffixes}}, $suffix[-1];
-    $file->{type} = $ExtToMIMEType->{pop @suffix};
+    $file->{type} = $type;
+    pop @suffix;
   }
 
   if (defined $file->{charset}) {
@@ -151,8 +157,8 @@ sub file_name_to_metadata ($) {
   return $file;
 } # file_name_to_metadata
 
-sub send_file ($$$$) {
-  my ($http, $path, $file, $meta) = @_;
+sub send_file ($$$$$) {
+  my ($http, $config, $path, $file, $meta) = @_;
   # XXX if large file
   return $file->stat->then (sub {
     my $mtime = $_[0]->[9];
@@ -163,14 +169,14 @@ sub send_file ($$$$) {
       if (defined $type) {
         my $charset = $meta->{charset};
         if (not defined $charset) {
-          my $charset_type = $CharsetTypeByMIMEType->{$type};
-          if (defined $charset_type and $charset_type eq 'default') {
+          my $charset_type = $CharsetTypeByMIMEType->{$type} // '';
+          if ($charset_type eq 'default') {
+            $charset = $config->{default_charset};
+          } elsif ($charset_type eq 'utf-8') {
             $charset = 'utf-8';
-          } elsif (defined $charset_type and $charset_type eq 'utf-8') {
-            $charset = 'utf-8';
-          } elsif ($charset_type =~ m{\+xml\z}) {
-            $charset = 'utf-8';
-          } elsif ($charset_type =~ m{\+json\z}) {
+          } elsif ($type =~ m{\+xml\z}) {
+            $charset = $config->{default_charset};
+          } elsif ($type =~ m{\+json\z}) {
             $charset = 'utf-8';
           }
         }
@@ -191,8 +197,8 @@ sub send_file ($$$$) {
   });
 } # send_file
 
-sub send_directory ($$$$) {
-  my ($http, $path_segments, $path, $file) = @_;
+sub send_directory ($$$$$) {
+  my ($http, $config, $path_segments, $path, $file) = @_;
   return Promise->new (sub {
     my ($ok, $ng) = @_;
     aio_readdir $path, sub {
@@ -229,7 +235,7 @@ sub send_directory ($$$$) {
             }
           } @$path_segments),
           (join '', map {
-            my $parsed = file_name_to_metadata $_;
+            my $parsed = file_name_to_metadata $config, $_;
             my @t = ('<li>');
             my $name = $parsed->{base_name};
             push @t, sprintf q{<a href="%s">%s</a>},
@@ -248,8 +254,8 @@ sub send_directory ($$$$) {
   });
 } # send_directory
 
-sub send_conneg ($$$) {
-  my ($http, $p, $fallback) = @_;
+sub send_conneg ($$$$) {
+  my ($http, $config, $p, $fallback) = @_;
   my $dir_path = $p->parent;
   my $base_name = $p->basename;
   return Promise->new (sub {
@@ -261,7 +267,7 @@ sub send_conneg ($$$) {
   })->then (sub {
     my $files = [map {
       if (/\A$base_name\./) {
-        my $meta = file_name_to_metadata $_;
+        my $meta = file_name_to_metadata $config, $_;
         if (length $_ <= length join '.', $base_name, @{$meta->{suffixes}}) {
           ($meta);
         } else {
@@ -314,12 +320,13 @@ sub send_conneg ($$$) {
       die $_[0];
     });
   })->then (sub {
-    return send_file $http, $_[0]->[0], $_[0]->[1], $_[0]->[2] if $_[0];
+    return send_file $http, $config, $_[0]->[0], $_[0]->[1], $_[0]->[2] if $_[0];
     return $fallback->();
   });
 } # send_conneg
 
-sub check_htaccess ($) {
+sub check_htaccess ($$) {
+  my $config = $_[1];
   my $htaccess_path = $_[0]->child ('.htaccess');
   my $f = Promised::File->new_from_path ($htaccess_path);
   return $f->is_file->then (sub {
@@ -337,6 +344,54 @@ sub check_htaccess ($) {
         });
         my $data = $parser->parse_char_string ($_[0]);
         die "$htaccess_path is broken" if $has_fatal_error;
+        for my $directive (keys %$data) {
+          if ($directive eq 'AddType') {
+            for (@{$data->{$directive}}) {
+              my $type = $_->{type};
+              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+              $config->{ext_to_mime_type}->{$_} = $type for @{$_->{exts}};
+            }
+          } elsif ($directive eq 'AddCharset') {
+            for (@{$data->{$directive}}) {
+              my $type = $_->{type};
+              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+              $config->{ext_to_charset}->{$_} = $type for @{$_->{exts}};
+            }
+          } elsif ($directive eq 'AddEncoding') {
+            for (@{$data->{$directive}}) {
+              my $type = $_->{type};
+              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+              $config->{ext_to_encoding}->{$_} = $type for @{$_->{exts}};
+            }
+          } elsif ($directive eq 'AddLanguage') {
+            for (@{$data->{$directive}}) {
+              my $type = $_->{type};
+              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+              die "Bad directive - AddLanguage $type"
+                  unless $type =~ /\A[a-z][a-z](?:-[a-z][a-z]|)\z/;
+              for (@{$_->{exts}}) {
+                die "Bad directive - AddLanguage $type $_"
+                    unless $type eq lc $_ and /^[a-z][a-z]/;
+              }
+            }
+          } elsif ($directive eq 'AddDefaultCharset') {
+            for (@{$data->{$directive}}) {
+              my $type = $_->{value};
+              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+              die "Bad directive - AddDefaultCharset $type"
+                  unless $type =~ /\A[a-z0-9_.+:-]+\z/;
+              $config->{default_charset} = $type;
+            }
+
+            # XXX IndexStyleSheet DirectoryIndex ReadmeName
+            # ErrorDocument Redirect IndexOptions
+
+          } else {
+            # XXX
+            #die
+            warn "Unknown directive |$directive|";
+          }
+        }
       });
     }
   });
@@ -355,14 +410,21 @@ sub psgi_app ($$) {
       my $p = $docroot;
       my $f;
 
+      my $config = {
+        default_charset => 'utf-8',
+        ext_to_mime_type => {%$ExtToMIMEType},
+        ext_to_charset => {%$ExtToCharset},
+        ext_to_encoding => {%$ExtToEncoding},
+      };
+
       my $add_path; $add_path = sub {
         my $segment = $_[0];
         if ($segment eq '' and not @path) { # last segment (directory)
           $f ||= Promised::File->new_from_path ($p);
           return $f->lstat->then (sub {
             if (not -l $_[0] and -d $_[0]) {
-              return send_conneg $http, $p->child ('index'), sub {
-                return send_directory $http, \@p, $p, $f;
+              return send_conneg $http, $config, $p->child ('index'), sub {
+                return send_directory $http, $config, \@p, $p, $f;
               };
             } else {
               return not_found $http, 'Directory not found';
@@ -379,7 +441,7 @@ sub psgi_app ($$) {
               return not_found $http, 'Bad path';
             } elsif (@path) { # non-last segment
               if (defined $stat and -d $stat) {
-                return check_htaccess ($p)->then (sub {
+                return check_htaccess ($p, $config)->then (sub {
                   return $add_path->(shift @path);
                 });
               } else {
@@ -387,11 +449,11 @@ sub psgi_app ($$) {
               }
             } else { # last segment
               if (defined $stat and -f $stat) {
-                return send_file $http, $p, $f, file_name_to_metadata $p->basename;
+                return send_file $http, $config, $p, $f, file_name_to_metadata $config, $p->basename;
               } elsif (defined $stat and -d $stat) {
                 return redirect $http, 301, (percent_encode_c $segment) . '/';
               } else {
-                return send_conneg $http, $p, sub {
+                return send_conneg $http, $config, $p, sub {
                   return not_found $http, 'File not found';
                 };
               }
@@ -403,7 +465,7 @@ sub psgi_app ($$) {
       }; # $add_path
 
       return Promise->resolve->then (sub {
-        return check_htaccess $p;
+        return check_htaccess $p, $config;
       })->then (sub {
         return $add_path->(shift @path);
       })->then (sub {
