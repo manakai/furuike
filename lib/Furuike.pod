@@ -37,9 +37,13 @@ directory is not found or not of intended type, a 404 response is
 returned.
 
 If the final path segment is the empty string and identifies a
-directory (e.g. C</path/to/directory/>), a simple HTML document
-representing the list of the files and the directories in the
-directory is returned.
+directory (e.g. C</path/to/directory/>), the content of a directory
+index file, if any, or a simple HTML document representing the list of
+the files and the directories in the directory is returned.  A
+directory index file is a file that would be selected if the last path
+segment were C<index> (e.g. C</path/to/directory/index>).  As the file
+name extensions can be omitted, the file name might be
+C<index.ja.html>, C<index.svg.gz>, or C<index.txt>.
 
 If the final path segment is not the empty string and identifies a
 directory (e.g. C</path/to/directory>), a 301 response redirecting to

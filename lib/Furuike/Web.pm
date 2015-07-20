@@ -237,8 +237,8 @@ sub send_directory ($$$$) {
   });
 } # send_directory
 
-sub send_conneg ($$) {
-  my ($http, $p) = @_;
+sub send_conneg ($$$) {
+  my ($http, $p, $fallback) = @_;
   my $dir_path = $p->parent;
   my $base_name = $p->basename;
   return Promise->new (sub {
@@ -304,7 +304,7 @@ sub send_conneg ($$) {
     });
   })->then (sub {
     return send_file $http, $_[0]->[0], $_[0]->[1], $_[0]->[2] if $_[0];
-    return not_found $http, 'File not found';
+    return $fallback->();
   });
 } # send_conneg
 
@@ -327,7 +327,9 @@ sub psgi_app ($$) {
           $f ||= Promised::File->new_from_path ($p);
           return $f->lstat->then (sub {
             if (not -l $_[0] and -d $_[0]) {
-              return send_directory $http, \@p, $p, $f;
+              return send_conneg $http, $p->child ('index'), sub {
+                return send_directory $http, \@p, $p, $f;
+              };
             } else {
               return not_found $http, 'Directory not found';
             }
@@ -353,7 +355,9 @@ sub psgi_app ($$) {
               } elsif (defined $stat and -d $stat) {
                 return redirect $http, 301, (percent_encode_c $segment) . '/';
               } else {
-                return send_conneg $http, $p;
+                return send_conneg $http, $p, sub {
+                  return not_found $http, 'File not found';
+                };
               }
             }
           });
