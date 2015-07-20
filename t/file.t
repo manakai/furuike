@@ -218,7 +218,7 @@ test {
       [q</ab/cd.txt>],
       [q</xyz>, 301],
       [q</xyz/>],
-      [q</xyz/abc>, 404],
+      [q</xyz/abc>],
       [q</.htaccess>, 404],
       [q</abbb/.htaccess>, 404],
     ) {
@@ -240,7 +240,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 3 * 2 + 4 * 1, name => 'unreadable file';
+} n => 4 * 2 + 3 * 1, name => 'unreadable file';
 
 test {
   my $c = shift;
