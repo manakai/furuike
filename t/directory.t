@@ -100,6 +100,58 @@ test {
   });
 } n => 4, name => 'directory';
 
+test {
+  my $c = shift;
+  server ({
+    '.htpasswd' => '',
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          unlike $res->content, qr{.htpasswd};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 2, name => 'hidden files';
+
+test {
+  my $c = shift;
+  server ({
+    'foo.bar.ja.html.gz' => '',
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{\Q<a href="foo.bar">foo.bar</a>.<a href="foo.bar.ja">ja</a>.<a href="foo.bar.ja.html">html</a>.<a href="foo.bar.ja.html.gz">gz</a>\E};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 2, name => 'file extensions';
+
 run_tests;
 
 =head1 LICENSE

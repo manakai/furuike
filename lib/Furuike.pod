@@ -22,7 +22,7 @@ the Web server.  No confidental data should be put within that
 directory.
 
 Any non-final path segment must match to the regular expression
-C<\A[A-Za-z0-9_-][A-Za-z0-9_.-]*\z>.  The final path segment must
+C<\A~?[A-Za-z0-9_-][A-Za-z0-9_.-]*\z>.  The final path segment must
 match to the regular expression or the empty string.  If there is an
 invalid path segment in the effective request URL, a 404 or 400
 response is returned.
