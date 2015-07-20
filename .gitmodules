@@ -42,3 +42,9 @@
 	path = t_deps/modules/web-ua
 	url = git://github.com/wakaba/perl-web-useragent-functions
 	track = master
+[submodule "perl-ooutils"]
+	path = perl-ooutils
+	url = git://github.com/wakaba/perl-ooutils
+[submodule "modules/ooutils"]
+	path = modules/ooutils
+	url = git://github.com/wakaba/perl-ooutils

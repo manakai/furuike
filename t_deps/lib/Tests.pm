@@ -81,10 +81,12 @@ sub GET ($$;%) {
   my $host = $server->get_host;
   return Promise->new (sub {
     my ($ok, $ng) = @_;
+    my $headers = {%{$args{header_fields} or {}}};
+    $headers->{'Accept-Language'} = $args{langs} if defined $args{langs};
     http_get
         url => qq<http://$host$path>,
         basic_auth => $args{basic_auth},
-        header_fields => $args{header_fields},
+        header_fields => $headers,
         params => $args{params},
         timeout => 30,
         anyevent => 1,

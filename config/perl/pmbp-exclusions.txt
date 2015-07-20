@@ -3,6 +3,7 @@
 - "../../modules/web-encodings" tests build
 - "../../modules/twiggy-packed" tests
 - "../../modules/wanage" tests mp datetime build
+- "../../modules/ooutils" tests classdiamondgenerator test classregistry objectcachesmethod operationresponse
 - "../../modules/promise" tests
 - "../../modules/promised-file" tests
 - "../../modules/promised-command" tests
