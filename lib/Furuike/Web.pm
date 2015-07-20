@@ -17,15 +17,16 @@ sub htescape ($) {
   return $e;
 } # htescape
 
-sub access_log ($$$) {
-  my ($http, $status, $type) = @_;
+sub access_log ($$$;$) {
+  my ($http, $status, $type, $path) = @_;
   print STDERR join "\t",
       'time:' . time,
       'client:' . $http->client_ip_addr->as_text,
       'method:' . $http->request_method,
       'url:' . $http->url->stringify,
       'status:' . $status,
-      'response_type:' . $type;
+      'response_type:' . $type,
+      'response_file:' . ($path // '');
   print STDERR "\n";
 } # access_log
 
@@ -58,8 +59,21 @@ my $ExtToMIMEType = {
   'jpeg' => 'image/jpeg',
   'gif' => 'image/gif',
   'ico' => 'image/vnd.microsoft.icon',
+  'xml' => 'text/xml',
+  'svg' => 'image/svg+xml',
+  'xhtml' => 'application/xhtml+xml',
   'pdf' => 'application/pdf',
+  'zip' => 'application/zip',
 };
+
+my $MIMETypeToPriority = {};
+{
+  my $i = 1;
+  $MIMETypeToPriority->{$_} = $i++ for reverse qw(
+    text/html text/plain
+    image/png image/jpeg image/vnd.microsoft.icon image/gif
+  );
+}
 
 my $CharsetTypeByMIMEType = {
   'text/html' => 'default',
@@ -71,19 +85,82 @@ my $CharsetTypeByMIMEType = {
   'application/json' => 'utf-8',
 };
 
-sub send_file ($$$) {
-  my ($http, $path, $file) = @_;
+my $ExtToCharset = {
+  'u8' => 'utf-8',
+  'sjis' => 'shift_jis',
+  'euc' => 'euc-jp',
+  'jis' => 'iso-2022-jp',
+};
+
+my $ExtToEncoding = {
+  'gz' => 'gzip',
+};
+
+sub file_name_to_metadata ($) {
+  # {base_name}.{lang}.{type}.{charset}.{encoding}
+
+  my $file = {file_name => $_[0], suffixes => []};
+
+  my @suffix = split /\./, $_[0], -1;
+  shift @suffix;
+
+  if (@suffix and $ExtToEncoding->{$suffix[-1]}) {
+    unshift @{$file->{suffixes}}, $suffix[-1];
+    $file->{encoding} = $ExtToEncoding->{pop @suffix};
+  }
+
+  if (@suffix and $ExtToCharset->{$suffix[-1]}) {
+    unshift @{$file->{suffixes}}, $suffix[-1];
+    $file->{charset} = $ExtToCharset->{pop @suffix};
+  }
+
+  if (@suffix and $ExtToMIMEType->{$suffix[-1]}) {
+    unshift @{$file->{suffixes}}, $suffix[-1];
+    $file->{type} = $ExtToMIMEType->{pop @suffix};
+  }
+
+  if (defined $file->{charset}) {
+    if (defined $file->{type}) {
+      my $charset_type = $CharsetTypeByMIMEType->{$file->{type}};
+      if (defined $charset_type and $charset_type eq 'default') {
+        #
+      } elsif ($file->{type} =~ m{\+xml\z}) {
+        #
+      } else {
+        shift @{$file->{suffixes}};
+        shift @{$file->{suffixes}};
+        delete $file->{charset};
+        delete $file->{type};
+        return $file;
+      }
+    } else {
+      shift @{$file->{suffixes}};
+      delete $file->{charset};
+      return $file;
+    }
+  }
+
+  if (@suffix and $suffix[-1] =~ /\A[a-z]{2}(?:-[A-Za-z]{2})?\z/) {
+    unshift @{$file->{suffixes}}, $suffix[-1];
+    $file->{lang} = pop @suffix;
+    $file->{lang} =~ s/(-[A-Za-z]+)$/uc $1/e;
+  }
+
+  return $file;
+} # file_name_to_metadata
+
+sub send_file ($$$$) {
+  my ($http, $path, $file, $meta) = @_;
   # XXX if large file
   return $file->stat->then (sub {
     my $mtime = $_[0]->[9];
     return $file->read_byte_string->then (sub {
       $http->set_status (200);
       $http->set_response_last_modified ($mtime);
-      if ($path->basename =~ /\.([^.]+)\z/) {
-        my $ext = $1;
-        my $type = $ExtToMIMEType->{$ext};
-        if (defined $type) {
-          my $charset;
+      my $type = $meta->{type};
+      if (defined $type) {
+        my $charset = $meta->{charset};
+        if (not defined $charset) {
           my $charset_type = $CharsetTypeByMIMEType->{$type};
           if (defined $charset_type and $charset_type eq 'default') {
             $charset = 'utf-8';
@@ -94,16 +171,20 @@ sub send_file ($$$) {
           } elsif ($charset_type =~ m{\+json\z}) {
             $charset = 'utf-8';
           }
-          if (defined $charset) {
-            $http->set_response_header ('Content-Type' => "$type; charset=$charset");
-          } else {
-            $http->set_response_header ('Content-Type' => $type);
-          }
+        }
+        if (defined $charset) {
+          $http->set_response_header ('Content-Type' => "$type; charset=$charset");
+        } else {
+          $http->set_response_header ('Content-Type' => $type);
         }
       }
+      $http->set_response_header ('Content-Language' => $meta->{lang})
+          if defined $meta->{lang};
+      $http->set_response_header ('Content-Encoding' => $meta->{encoding})
+          if defined $meta->{encoding};
       $http->send_response_body_as_ref (\($_[0]));
       $http->close_response_body;
-      access_log $http, 200, 'File';
+      access_log $http, 200, 'File', $path;
     });
   });
 } # send_file
@@ -151,10 +232,91 @@ sub send_directory ($$$$) {
           } @$names);
       $http->send_response_body_as_text ($t);
       $http->close_response_body;
-      access_log $http, 200, 'Directory';
+      access_log $http, 200, 'Directory', $path;
     });
   });
 } # send_directory
+
+sub send_conneg ($$) {
+  my ($http, $p) = @_;
+  my $dir_path = $p->parent;
+  my $base_name = $p->basename;
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    aio_readdir $dir_path, sub {
+      my ($names) = @_ or return $ng->($!);
+      return $ok->($names);
+    };
+  })->then (sub {
+    my $files = [map {
+      if (/\A$base_name\./) {
+        my $meta = file_name_to_metadata $_;
+        if (length $_ <= length join '.', $base_name, @{$meta->{suffixes}}) {
+          ($meta);
+        } else {
+          ();
+        }
+      } else {
+        ();
+      }
+    } @{$_[0]}];
+
+    my $i = 1;
+    my $lang_to_priority = {};
+    for (reverse @{$http->accept_langs}) {
+      $lang_to_priority->{$_} = $i++;
+    }
+    for (@$files) {
+      $_->{type_priority} = $MIMETypeToPriority->{$_->{type} // ''} || 0;
+      $_->{lang_priority} = $lang_to_priority->{lc ($_->{lang} // '')} || 0;
+      $_->{charset_priority} = ($_->{charset} // '') eq 'utf-8' ? 1 : 0;
+    }
+    $files = [sort {
+      $b->{type_priority} <=> $a->{type_priority} ||
+      $b->{lang_priority} <=> $a->{lang_priority} ||
+      $b->{charset_priority} <=> $a->{charset_priority};
+    } @$files];
+
+    return undef unless @$files;
+
+    my $select_file; $select_file = sub {
+      my $file = shift @$files;
+      return undef unless defined $file;
+      my $path = $dir_path->child ($file->{file_name});
+      my $f = Promised::File->new_from_path ($path);
+      return $f->is_symlink->then (sub {
+        if ($_[0]) {
+          return 0;
+        } else {
+          return $f->is_file->then (sub {
+            if ($_[0]) {
+              return 1;
+            } else {
+              return 0;
+            }
+          });
+        }
+      })->then (sub {
+        if ($_[0]) {
+          return [$path, $f, $file];
+        } else {
+          return $select_file->();
+        }
+      });
+    }; # $select_file
+
+    return Promise->resolve ($select_file->())->then (sub {
+      undef $select_file;
+      return $_[0];
+    }, sub {
+      undef $select_file;
+      die $_[0];
+    });
+  })->then (sub {
+    return send_file $http, $_[0]->[0], $_[0]->[1], $_[0]->[2] if $_[0];
+    return not_found $http, 'File not found';
+  });
+} # send_conneg
 
 sub psgi_app ($$) {
   my ($class, $docroot) = @_;
@@ -171,7 +333,7 @@ sub psgi_app ($$) {
 
       my $add_path; $add_path = sub {
         my $segment = $_[0];
-        if ($segment eq '' and not @path) {
+        if ($segment eq '' and not @path) { # last segment (directory)
           $f ||= Promised::File->new_from_path ($p);
           return $f->is_directory->then (sub {
             if ($_[0]) {
@@ -198,13 +360,13 @@ sub psgi_app ($$) {
               } else { # last segment
                 return $f->is_file->then (sub {
                   if ($_[0]) {
-                    return send_file $http, $p, $f;
+                    return send_file $http, $p, $f, file_name_to_metadata $p->basename;
                   } else {
                     return $f->is_directory->then (sub {
                       if ($_[0]) {
                         return redirect $http, 301, (percent_encode_c $segment) . '/';
                       } else {
-                        return not_found $http, 'File not found';
+                        return send_conneg $http, $p;
                       }
                     });
                   }
