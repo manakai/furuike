@@ -96,7 +96,9 @@ built-in extension-to-MIME-type mapping rules:
   pdf   application/pdf
   zip   application/zip
 
-If no mapping is found, no C<Content-Type:> header is set.
+The set of mapping rules can be configured by the C<AddType>
+directive.  If no applicable mapping is found, no C<Content-Type:>
+header is set.
 
 If the MIME type extension is omitted from the URL and there are
 multiple candidate files, a file is selected using the following
@@ -116,8 +118,7 @@ For following MIME types, C<charset=utf-8> parameter is set:
 
 For following MIME types, the encoding label determined by the
 encoding label extension in the file name of the response, if any, or
-the default C<charset> value, is used as the C<charset> parameter
-value:
+the default encoding label, is used as the C<charset> parameter value:
 
   text/html text/css text/javascript text/xml application/xml */*+xml
 
@@ -129,7 +130,11 @@ rules:
   euc  euc-jp
   sjis shift_jis
 
-The default for the default C<charset> value is C<utf-8>.
+The set of mapping rules can be configured by the C<AddCharset>
+directive.
+
+The default for the default encoding label is C<utf-8>.  This default
+can be configured by the C<AddDefaultCharset> directive.
 
 If the MIME type extension is omitted from the URL and there are
 multiple candidate files, utf-8 is preferred to other encodings.
@@ -161,8 +166,100 @@ extension-to-content-coding mapping rule:
 
   gz    gzip
 
-If no content-coding extension is found, no C<Content-Encoding:>
-header is set.
+The set of mapping rules can be configured by the C<AddEncoding>
+directive.  If no applicable content-coding mapping is found, no
+C<Content-Encoding:> header is set.
+
+=head1 DIRECTORY CONFIGURATION FILE (.htaccess)
+
+The C<.htaccess> file can be used to describe various response options
+applied to a directory (and its contents).  Its format is a very
+limited subset of the C<.htaccess> files used in Apache HTTP Server.
+
+When a file is used to construct a response, the C<.htaccess> file in
+the all directory to which the file belongs directly or indirectly,
+traversed upward until the document root directory, inclusive, if any.
+Any C<.htaccess> file for the parent directory of the document root,
+for example, is not used.  When a directory list is returned as a
+response, the C<.htaccess> file in the directory, as well as ancestor
+directories until the document root directory, are used. if any.
+
+The C<.htaccess> files are read and processed to check the response
+options in the order of the directory tree hierarchy, starting from
+the document root.
+
+For example, for the file C</path/to/root/foo/bar/index.html>, the
+following C<.htaccess> files are examined in this order, if the
+document root is C</path/to/root>:
+
+  /path/to/root/.htaccess
+  /path/to/root/foo/.htaccess
+  /path/to/root/foo/bar/.htaccess
+
+In an C<.htaccess> file, any empty line or line starting with C<#>,
+optionally preceded by space characters, is ignored.
+
+In an C<.htaccess> file, the C<< <IfModule fileName> >> line, where
+I<fileName> is some opaque string, indicates that any following line
+should be ignored until C<< </IfModule> >> line is found.
+
+In an C<.htaccess> file, a directive name can be followed by one or
+more arguments, as described in later subsection.
+
+Any other line is considered as a parse error.
+
+If one of an applicable C<.htaccess> file has a parse error, any
+request to the files in the directory or the directory itself results
+in a C<500> response.
+
+=head2 Directives
+
+Following directives are available:
+
+=over 4
+
+=item AddType MIMETYPE .EXT1 .EXT2 ...
+
+Add a set of MIME type extension file name mapping rules.  The first
+argument must be an MIME type without parameter (ASCII
+case-insensitive).  The other arguments must be file name extensions
+(case-sensitive), optionally preceded by a C<.> character.  There must
+be two or more arguments.
+
+=item AddEncoding CODING .EXT1 .EXT2 ...
+
+Add a set of content-coding file name extension mapping rules.  The
+first argument must be a content-coding (ASCII case-insensitive).  The
+other arguments must be file name extensions (case-sensitive),
+optionally preceded by a C<.> character.  There must be two or more
+arguments.
+
+=item AddLanguage LANG .EXT1 .EXT2 ...
+
+This directive is ignored.  If specified, there must be two or more
+arguments.  The first argument must be equal to the other arguments,
+when any preceding C<.> character in the other arguments is ignored.
+
+This directive is DEPRECATED.
+
+=item AddCharset ENCODING .EXT1 .EXT2 ...
+
+Add a set of encoding label file name extension mapping rules.  The
+first argument must be an encoding label (ASCII case-insensitive).
+The other arguments must be file name extensions (case-sensitive),
+optionally preceded by a C<.> character.  There must be two or more
+arguments.
+
+This directive is DEPRECATED.  You should always use UTF-8.
+
+=item AddDefaultCharset ENCODING
+
+Set the default encoding label, which is used as the default value for
+the C<charset> parameter.
+
+This directive is DEPRECATED.  You should always use UTF-8.
+
+=back
 
 =head1 DEPENDENCY
 
