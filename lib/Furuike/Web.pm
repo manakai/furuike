@@ -7,6 +7,8 @@ use AnyEvent::IO;
 use Promise;
 use Promised::File;
 
+my $Segment = qr/~?[A-Za-z0-9_-][A-Za-z0-9_.-]*/;
+
 sub htescape ($) {
   return $_[0] unless $_[0] =~ /[&<>"]/;
   my $e = $_[0];
@@ -102,7 +104,7 @@ sub file_name_to_metadata ($) {
   my $file = {file_name => $_[0], suffixes => []};
 
   my @suffix = split /\./, $_[0], -1;
-  shift @suffix;
+  $file->{base_name} = shift @suffix;
 
   if (@suffix and $ExtToEncoding->{$suffix[-1]}) {
     unshift @{$file->{suffixes}}, $suffix[-1];
@@ -127,15 +129,14 @@ sub file_name_to_metadata ($) {
       } elsif ($file->{type} =~ m{\+xml\z}) {
         #
       } else {
-        shift @{$file->{suffixes}};
-        shift @{$file->{suffixes}};
         delete $file->{charset};
         delete $file->{type};
+        $file->{base_name} = join '.', $file->{base_name}, @suffix, splice @{$file->{suffixes}}, 0, 2;
         return $file;
       }
     } else {
-      shift @{$file->{suffixes}};
       delete $file->{charset};
+      $file->{base_name} = join '.', $file->{base_name}, @suffix, shift @{$file->{suffixes}};
       return $file;
     }
   }
@@ -146,6 +147,7 @@ sub file_name_to_metadata ($) {
     $file->{lang} =~ s/(-[A-Za-z]+)$/uc $1/e;
   }
 
+  $file->{base_name} = join '.', $file->{base_name}, @suffix;
   return $file;
 } # file_name_to_metadata
 
@@ -227,9 +229,18 @@ sub send_directory ($$$$) {
             }
           } @$path_segments),
           (join '', map {
-            sprintf '<li><a href="%s"><code>%s</code></a>',
-                htescape $_, htescape $_;
-          } @$names);
+            my $parsed = file_name_to_metadata $_;
+            my @t = ('<li>');
+            my $name = $parsed->{base_name};
+            push @t, sprintf q{<a href="%s">%s</a>},
+                htescape $name, htescape $name;
+            for (@{$parsed->{suffixes}}) {
+              $name .= '.' . $_;
+              push @t, sprintf q{.<a href="%s">%s</a>},
+                  htescape $name, htescape $_;
+            }
+            join '', @t;
+          } sort { $a cmp $b } grep { /\A$Segment\z/o } @$names);
       $http->send_response_body_as_text ($t);
       $http->close_response_body;
       access_log $http, 200, 'Directory', $path;
@@ -336,7 +347,7 @@ sub psgi_app ($$) {
           }, sub {
             return not_found $http, 'Directory not found';
           });
-        } elsif ($segment =~ /\A[A-Za-z0-9_-][A-Za-z0-9_.-]*\z/) {
+        } elsif ($segment =~ /\A$Segment\z/o) {
           $p = $p->child ($segment);
           $f = Promised::File->new_from_path ($p);
           return $f->lstat->catch (sub { return undef })->then (sub {

@@ -251,6 +251,7 @@ test {
     'bar/foo.png' => qq{abc\xFE\x80\x12\x90\x00},
     'bar/foo.json' => qq{abc\xFE\x80\x12\x90\x00},
     'bar/foo' => qq{abc\xFE\x80\x12\x90\x00},
+    '~bar/foo' => qq{abc\xFE\x80\x12\x90\x00},
   })->then (sub {
     my $server = $_[0];
     my $p = Promise->resolve;
@@ -262,6 +263,7 @@ test {
       ['/bar/foo.png', 'image/png'],
       ['/bar/foo.json', 'application/json; charset=utf-8'],
       ['/bar/foo', undef],
+      ['/~bar/foo', undef],
     ) {
       $p = $p->then (sub {
         return GET ($server, $x->[0]);
@@ -278,7 +280,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 3 * 7;
+} n => 3 * 8;
 
 run_tests;
 
