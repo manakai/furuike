@@ -284,24 +284,14 @@ sub send_conneg ($$) {
       return undef unless defined $file;
       my $path = $dir_path->child ($file->{file_name});
       my $f = Promised::File->new_from_path ($path);
-      return $f->is_symlink->then (sub {
-        if ($_[0]) {
-          return 0;
-        } else {
-          return $f->is_file->then (sub {
-            if ($_[0]) {
-              return 1;
-            } else {
-              return 0;
-            }
-          });
-        }
-      })->then (sub {
-        if ($_[0]) {
+      return $f->lstat->then (sub {
+        if (not -l $_[0] and -f $_[0]) {
           return [$path, $f, $file];
         } else {
           return $select_file->();
         }
+      }, sub {
+        return $select_file->();
       });
     }; # $select_file
 
@@ -335,42 +325,35 @@ sub psgi_app ($$) {
         my $segment = $_[0];
         if ($segment eq '' and not @path) { # last segment (directory)
           $f ||= Promised::File->new_from_path ($p);
-          return $f->is_directory->then (sub {
-            if ($_[0]) {
+          return $f->lstat->then (sub {
+            if (not -l $_[0] and -d $_[0]) {
               return send_directory $http, \@p, $p, $f;
             } else {
               return not_found $http, 'Directory not found';
             }
+          }, sub {
+            return not_found $http, 'Directory not found';
           });
         } elsif ($segment =~ /\A[A-Za-z0-9_-][A-Za-z0-9_.-]*\z/) {
           $p = $p->child ($segment);
           $f = Promised::File->new_from_path ($p);
-          return $f->is_symlink->then (sub {
-            if ($_[0]) {
+          return $f->lstat->catch (sub { return undef })->then (sub {
+            my $stat = $_[0];
+            if (defined $stat and -l $stat) {
               return not_found $http, 'Bad path';
-            } else {
-              if (@path) { # non-last segment
-                return $f->is_directory->then (sub {
-                  if ($_[0]) {
-                    return $add_path->(shift @path);
-                  } else {
-                    return not_found $http, 'Directory not found';
-                  }
-                });
-              } else { # last segment
-                return $f->is_file->then (sub {
-                  if ($_[0]) {
-                    return send_file $http, $p, $f, file_name_to_metadata $p->basename;
-                  } else {
-                    return $f->is_directory->then (sub {
-                      if ($_[0]) {
-                        return redirect $http, 301, (percent_encode_c $segment) . '/';
-                      } else {
-                        return send_conneg $http, $p;
-                      }
-                    });
-                  }
-                });
+            } elsif (@path) { # non-last segment
+              if (defined $stat and -d $stat) {
+                return $add_path->(shift @path);
+              } else {
+                return not_found $http, 'Directory not found';
+              }
+            } else { # last segment
+              if (defined $stat and -f $stat) {
+                return send_file $http, $p, $f, file_name_to_metadata $p->basename;
+              } elsif (defined $stat and -d $stat) {
+                return redirect $http, 301, (percent_encode_c $segment) . '/';
+              } else {
+                return send_conneg $http, $p;
               }
             }
           });
