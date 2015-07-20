@@ -319,6 +319,29 @@ sub send_conneg ($$$) {
   });
 } # send_conneg
 
+sub check_htaccess ($) {
+  my $htaccess_path = $_[0]->child ('.htaccess');
+  my $f = Promised::File->new_from_path ($htaccess_path);
+  return $f->is_file->then (sub {
+    if ($_[0]) {
+      return $f->read_char_string->then (sub {
+        use Furuike::HTAccessParser;
+        my $parser = Furuike::HTAccessParser->new;
+        my $has_fatal_error;
+        $parser->onerror (sub {
+          my %args = @_;
+          if ($args{level} eq 'm') {
+            $has_fatal_error = 1;
+          }
+          warn join ' ', %args;
+        });
+        my $data = $parser->parse_char_string ($_[0]);
+        die "$htaccess_path is broken" if $has_fatal_error;
+      });
+    }
+  });
+} # check_htaccess
+
 sub psgi_app ($$) {
   my ($class, $docroot) = @_;
   return sub {
@@ -356,7 +379,9 @@ sub psgi_app ($$) {
               return not_found $http, 'Bad path';
             } elsif (@path) { # non-last segment
               if (defined $stat and -d $stat) {
-                return $add_path->(shift @path);
+                return check_htaccess ($p)->then (sub {
+                  return $add_path->(shift @path);
+                });
               } else {
                 return not_found $http, 'Directory not found';
               }
@@ -378,6 +403,8 @@ sub psgi_app ($$) {
       }; # $add_path
 
       return Promise->resolve->then (sub {
+        return check_htaccess $p;
+      })->then (sub {
         return $add_path->(shift @path);
       })->then (sub {
         undef $add_path;

@@ -164,6 +164,45 @@ extension-to-content-coding mapping rule:
 If no content-coding extension is found, no C<Content-Encoding:>
 header is set.
 
+=head1 DIRECTORY CONFIGURATION FILE (.htaccess)
+
+The C<.htaccess> file can be used to describe various response options
+applied to a directory (and its contents).  Its format is a very
+limited subset of the C<.htaccess> files used in Apache HTTP Server.
+
+When a file is used to construct a response, the C<.htaccess> file in
+the all directory to which the file belongs directly or indirectly,
+traversed upward until the document root directory, inclusive, if any.
+Any C<.htaccess> file for the parent directory of the document root,
+for example, is not used.  When a directory list is returned as a
+response, the C<.htaccess> file in the directory, as well as ancestor
+directories until the document root directory, are used. if any.
+
+The C<.htaccess> files are read and processed to check the response
+options in the order of the directory tree hierarchy, starting from
+the document root.
+
+For example, for the file C</path/to/root/foo/bar/index.html>, the
+following C<.htaccess> files are examined in this order, if the
+document root is C</path/to/root>:
+
+  /path/to/root/.htaccess
+  /path/to/root/foo/.htaccess
+  /path/to/root/foo/bar/.htaccess
+
+In an C<.htaccess> file, any empty line or line starting with C<#>,
+optionally preceded by space characters, is ignored.
+
+In an C<.htaccess> file, the C<< <IfModule fileName> >> line, where
+I<fileName> is some opaque string, indicates that any following line
+should be ignored until C<< </IfModule> >> line is found.
+
+Any other line is considered as a parse error.
+
+If one of an applicable C<.htaccess> file has a parse error, any
+request to the files in the directory or the directory itself results
+in a C<500> response.
+
 =head1 DEPENDENCY
 
 Perl 5.14 or later is required.
