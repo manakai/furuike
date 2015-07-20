@@ -208,8 +208,8 @@ test {
     'foo.txt' => {unreadable => 1},
     'ab/cd.txt' => {unreadable => 1},
     'xyz' => {unreadable => 1, directory => 1},
-    '.htaccess' => 'foo',
-    'abbb/.htaccess' => 'foo',
+    '.htaccess' => '#foo',
+    'abbb/.htaccess' => '#foo',
   })->then (sub {
     my $server = $_[0];
     my $p = Promise->resolve;
