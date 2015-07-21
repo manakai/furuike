@@ -96,6 +96,8 @@ test {
 abc
 </IfModule>
 AddLanguage ja .ja 
+IndexOptions +NameWidth=41 +HTMLTable
+IndexOptions TrackModified -IconsAreLinks
     },
     'foo' => q{aa},
   })->then (sub {
@@ -120,32 +122,38 @@ AddLanguage ja .ja
   });
 } n => 1 * 2, name => '.htaccess ignored';
 
-test {
-  my $c = shift;
-  server ({
-    '.htaccess' => q{AddLanguage foo .foo},
-  })->then (sub {
-    my $server = $_[0];
-    my $p = Promise->resolve;
-    for my $x (
-      [q</>],
-    ) {
-      $p = $p->then (sub {
-        return GET ($server, $x->[0]);
-      })->then (sub {
-        my $res = $_[0];
-        test {
-          is $res->code, 500;
-          is $res->header ('Content-Type'), q{text/plain; charset=utf-8};
-          is $res->content, q{500 Server error};
-        } $c, name => $x->[0];
-      });
-    }
-    return $p->then (sub {
-      return $server->stop;
-    })->then (sub { done $c; undef $c });
-  });
-} n => 3 * 1, name => 'Bad AddLanguage';
+for my $x (
+  [q{AddLanguage foo .foo}],
+  [q{IndexOptions hoge}],
+  [q{IndexOptions -DescriptionWidth=12}],
+) {
+  test {
+    my $c = shift;
+    server ({
+      '.htaccess' => $x->[0],
+    })->then (sub {
+      my $server = $_[0];
+      my $p = Promise->resolve;
+      for my $x (
+        [q</>],
+      ) {
+        $p = $p->then (sub {
+          return GET ($server, $x->[0]);
+        })->then (sub {
+          my $res = $_[0];
+          test {
+            is $res->code, 500;
+            is $res->header ('Content-Type'), q{text/plain; charset=utf-8};
+            is $res->content, q{500 Server error};
+          } $c, name => $x->[0];
+        });
+      }
+      return $p->then (sub {
+        return $server->stop;
+      })->then (sub { done $c; undef $c });
+    });
+  } n => 3 * 1, name => ['Bad .htaccess', $x->[0]];
+}
 
 run_tests;
 
