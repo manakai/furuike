@@ -703,7 +703,7 @@ sub psgi_app ($$) {
                 404, 'Directory not found', $p;
           });
         } elsif (@path and $segment =~ /\A$Segment\z/o) { # non-last segment
-          $current_virtual = $current_virtual->{children}->{$segment};
+          $current_virtual = $current_virtual->{children}->{$segment} ||= {};
           if (not $current_virtual->{is_directory}) {
             if (defined $current_virtual->{status} and
                 not defined $current_virtual->{location}) {

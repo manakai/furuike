@@ -242,6 +242,40 @@ test {
 test {
   my $c = shift;
   server ({
+    'foo/.htaccess' => q{
+      Redirect /abc http://hoge/abc
+      Redirect /foo/bar http://hoge/bar
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</abc>, 404, undef],
+      [q</foo>, 301, q<http://HOST/foo/>],
+      [q</foo/>, 200, undef],
+      [q</foo/bar>, 302, q<http://hoge/bar>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, $x->[1];
+          $x->[2] =~ s{^http://HOST}{'http://'.$server->get_host}e
+              if defined $x->[2];
+          is $res->header ('Location'), $x->[2];
+        } $c, name => [$x->[0], $x->[3]];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 4 * 2, name => 'Redirect subdirectory';
+
+test {
+  my $c = shift;
+  server ({
     '.htaccess' => q{
       Redirect /abc http://hoge/abc
       <IfModule Furuike>
