@@ -34,25 +34,6 @@ sub access_log ($$$;$) {
   print STDERR "\n";
 } # access_log
 
-sub not_found ($$$) {
-  my ($http, $reason, $path) = @_;
-  $http->set_status (404);
-  $http->set_response_header ('Content-Type' => 'text/plain; charset=utf-8');
-  $http->send_response_body_as_ref (\"404 $reason");
-  $http->close_response_body;
-  access_log $http, 404, $reason, $path;
-} # not_found
-
-sub redirect ($$$) {
-  my ($http, $status, $url) = @_;
-  $http->set_status ($status);
-  $http->set_response_header ('Location' => $url);
-  $http->set_response_header ('Content-Type' => 'text/html; charset=utf-8');
-  $http->send_response_body_as_ref (\sprintf q{<!DOCTYPE html><title>Redirect</title><a href="%s">Next</a>}, htescape $url);
-  $http->close_response_body;
-  access_log $http, $status, 'Redirect';
-} # redirect
-
 my $ExtToMIMEType = {
   'html' => 'text/html',
   'txt' => 'text/plain',
@@ -100,6 +81,19 @@ my $ExtToCharset = {
 my $ExtToEncoding = {
   'gz' => 'gzip',
 };
+
+sub new_config () {
+  return {
+    default_charset => 'utf-8',
+    ext_to_mime_type => {%$ExtToMIMEType},
+    ext_to_charset => {%$ExtToCharset},
+    ext_to_encoding => {%$ExtToEncoding},
+    directory_index => ['index'],
+    header_name => undef,
+    readme_name => 'README',
+    license_name => 'LICENSE',
+  };
+} # new_config
 
 sub file_name_to_metadata ($$) {
   my $config = $_[0];
@@ -239,13 +233,13 @@ sub conneg ($$$$$$) {
   });
 } # conneg
 
-sub send_file ($$$$$) {
-  my ($http, $config, $path, $file, $meta) = @_;
+sub send_file ($$$$$$) {
+  my ($http, $config, $path, $file, $meta, $status) = @_;
   # XXX if large file
   return $file->stat->then (sub {
     my $mtime = $_[0]->[9];
     return $file->read_byte_string->then (sub {
-      $http->set_status (200);
+      $http->set_status ($status);
       $http->set_response_last_modified ($mtime);
       my $type = $meta->{type};
       if (defined $type) {
@@ -280,7 +274,7 @@ sub send_file ($$$$$) {
           if defined $meta->{encoding};
       $http->send_response_body_as_ref (\($_[0]));
       $http->close_response_body;
-      access_log $http, 200, 'File', $path;
+      access_log $http, $status, 'File', $path;
     });
   });
 } # send_file
@@ -345,9 +339,15 @@ sub send_directory ($$$$$) {
           } sort { $a cmp $b } grep { /\A$Segment\z/o } @$names);
       $http->send_response_body_as_text ($t);
 
-      return [$dir_path,
-              Promised::File->new_from_path ($dir_path->child ($config->{readme_name})),
-              {type => 'text/plain'}] if $has_readme;
+      if ($has_readme) {
+        my $f = Promised::File->new_from_path ($dir_path->child ($config->{readme_name}));
+        return $f->lstat->then (sub {
+          if (-f $_[0] and not -l $_[0]) {
+            return [$dir_path, $f, {type => 'text/plain'}];
+          }
+          return undef;
+        });
+      }
       return conneg $http, $config, $names, $dir_path, [$config->{readme_name}], sub {
         return 0 unless defined $_->{type};
         return 0 unless $_->{type} eq 'text/html' or
@@ -385,9 +385,15 @@ sub send_directory ($$$$$) {
         }
       }
     })->then (sub {
-      return [$dir_path,
-              Promised::File->new_from_path ($dir_path->child ($config->{license_name})),
-              {type => 'text/plain'}] if $has_license;
+      if ($has_license) {
+        my $f = Promised::File->new_from_path ($dir_path->child ($config->{license_name}));
+        return $f->lstat->then (sub {
+          if (-f $_[0] and not -l $_[0]) {
+            return [$dir_path, $f, {type => 'text/plain'}];
+          }
+          return undef;
+        });
+      }
       return conneg $http, $config, $names, $dir_path, [$config->{license_name}], sub {
         return 0 unless defined $_->{type};
         return 0 unless $_->{type} eq 'text/plain';
@@ -407,6 +413,77 @@ sub send_directory ($$$$$) {
     });
   });
 } # send_directory
+
+sub not_found ($$$$$) {
+  my ($http, $config, $docroot, $reason, $path) = @_;
+  if (defined (my $doc = $config->{error_document}->{404})) {
+    ## Note that symlink check is not performed for ErrorDocument
+    my $dir_path = $docroot->child (@$doc[0..($#$doc-1)]);
+    my $error_config = new_config;
+    return check_htaccess ($docroot, $error_config)->then (sub {
+      return Promised::File->new_from_path ($dir_path)->is_directory;
+    })->then (sub {
+      if ($_[0]) {
+        return Promise->new (sub {
+          my ($ok, $ng) = @_;
+          aio_readdir $dir_path, sub {
+            my ($names) = @_ or return $ng->($!);
+            return $ok->($names);
+          };
+        });
+      } else {
+        return [];
+      }
+    })->then (sub {
+      for (@{$_[0]}) {
+        if ($_ eq $doc->[-1]) {
+          my $f = Promised::File->new_from_path ($dir_path->child ($doc->[-1]));
+          return $f->is_file->then (sub { # no symlink check
+            if ($_[0]) {
+              return [$dir_path,
+                      $f,
+                      file_name_to_metadata $error_config, $doc->[-1]];
+            }
+            return undef;
+          });
+        }
+      }
+      return conneg $http, $error_config, $_[0], $dir_path, [$doc->[-1]], sub {
+        return 0 unless defined $_->{type};
+        return 0 unless $_->{type} eq 'text/html' or
+                        $_->{type} eq 'text/plain';
+        return 0 if defined $_->{encoding};
+        return 1;
+      };
+    })->then (sub {
+      if (defined $_[0]) {
+        return send_file $http, $error_config, $_[0]->[0], $_[0]->[1], $_[0]->[2], 404;
+      } else {
+        $http->set_status (404);
+        $http->set_response_header ('Content-Type' => 'text/plain; charset=utf-8');
+        $http->send_response_body_as_ref (\"404 $reason");
+        $http->close_response_body;
+        access_log $http, 404, $reason, $path;
+      }
+    });
+  } else {
+    $http->set_status (404);
+    $http->set_response_header ('Content-Type' => 'text/plain; charset=utf-8');
+    $http->send_response_body_as_ref (\"404 $reason");
+    $http->close_response_body;
+    access_log $http, 404, $reason, $path;
+  }
+} # not_found
+
+sub redirect ($$$) {
+  my ($http, $status, $url) = @_;
+  $http->set_status ($status);
+  $http->set_response_header ('Location' => $url);
+  $http->set_response_header ('Content-Type' => 'text/html; charset=utf-8');
+  $http->send_response_body_as_ref (\sprintf q{<!DOCTYPE html><title>Redirect</title><a href="%s">Next</a>}, htescape $url);
+  $http->close_response_body;
+  access_log $http, $status, 'Redirect';
+} # redirect
 
 sub check_htaccess ($$) {
   my $config = $_[1];
@@ -531,8 +608,17 @@ sub check_htaccess ($$) {
               }
               $config->{header_name} = $_->{value};
             }
+          } elsif ($directive eq 'ErrorDocument') {
+            for (@{$data->{$directive}}) {
+              if ($_->{path} =~ m{\A(?:/$Segment)+\z}o) {
+                $config->{error_document}->{$_->{status}}
+                    = [grep { length } split m{/}, $_->{path}];
+              } else {
+                die "Bad path $_->{path}";
+              }
+            }
 
-            # XXX ErrorDocument Redirect IndexIgnore AddHandler
+            # XXX Redirect IndexIgnore AddHandler
 
             # XXX Options=ExecCGI HeaderName
 
@@ -560,16 +646,7 @@ sub psgi_app ($$) {
       my $p = $docroot;
       my $f;
 
-      my $config = {
-        default_charset => 'utf-8',
-        ext_to_mime_type => {%$ExtToMIMEType},
-        ext_to_charset => {%$ExtToCharset},
-        ext_to_encoding => {%$ExtToEncoding},
-        directory_index => ['index'],
-        header_name => undef,
-        readme_name => 'README',
-        license_name => 'LICENSE',
-      };
+      my $config = new_config;
 
       my $add_path; $add_path = sub {
         my $segment = $_[0];
@@ -587,16 +664,16 @@ sub psgi_app ($$) {
                 return conneg $http, $config, $_[0], $p, $config->{directory_index}, sub { 1 };
               })->then (sub {
                 if (defined $_[0]) {
-                  return send_file $http, $config, $_[0]->[0], $_[0]->[1], $_[0]->[2];
+                  return send_file $http, $config, $_[0]->[0], $_[0]->[1], $_[0]->[2], 200;
                 } else {
                   return send_directory $http, $config, \@p, $p, $f;
                 }
               });
             } else {
-              return not_found $http, 'Directory not found', $p;
+              return not_found $http, $config, $docroot, 'Directory not found', $p;
             }
           }, sub {
-            return not_found $http, 'Directory not found', $p;
+            return not_found $http, $config, $docroot, 'Directory not found', $p;
           });
         } elsif ($segment =~ /\A$Segment\z/o) {
           $p = $p->child ($segment);
@@ -604,18 +681,18 @@ sub psgi_app ($$) {
           return $f->lstat->catch (sub { return undef })->then (sub {
             my $stat = $_[0];
             if (defined $stat and -l $stat) {
-              return not_found $http, 'Bad path', $p;
+              return not_found $http, $config, $docroot, 'Bad path', $p;
             } elsif (@path) { # non-last segment
               if (defined $stat and -d $stat) {
                 return check_htaccess ($p, $config)->then (sub {
                   return $add_path->(shift @path);
                 });
               } else {
-                return not_found $http, 'Directory not found', $p;
+                return not_found $http, $config, $docroot, 'Directory not found', $p;
               }
             } else { # last segment
               if (defined $stat and -f $stat) {
-                return send_file $http, $config, $p, $f, file_name_to_metadata $config, $p->basename;
+                return send_file $http, $config, $p, $f, (file_name_to_metadata $config, $p->basename), 200;
               } elsif (defined $stat and -d $stat) {
                 return redirect $http, 301, (percent_encode_c $segment) . '/';
               } else {
@@ -630,16 +707,16 @@ sub psgi_app ($$) {
                   return conneg ($http, $config, $_[0], $parent_path, [$segment], sub { 1 });
                 })->then (sub {
                   if (defined $_[0]) {
-                    return send_file $http, $config, $_[0]->[0], $_[0]->[1], $_[0]->[2];
+                    return send_file $http, $config, $_[0]->[0], $_[0]->[1], $_[0]->[2], 200;
                   } else {
-                    return not_found $http, 'File not found', $p;
+                    return not_found $http, $config, $docroot, 'File not found', $p;
                   }
                 });
               }
             }
           });
         } else {
-          return not_found $http, 'Bad path', $p;
+          return not_found $http, $config, $docroot, 'Bad path', $p;
         }
       }; # $add_path
 

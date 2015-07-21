@@ -458,6 +458,60 @@ test {
   });
 } n => 5, name => 'README html - IndexOptions charset';
 
+test {
+  my $c = shift;
+  server ({
+    'README/index.html' => 'abc',
+    'LICENSE' => 'Agava',
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          unlike $res->content, qr{abc};
+          like $res->content, qr{Agava};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 3, name => 'README directory';
+
+test {
+  my $c = shift;
+  server ({
+    'LICENSE/index.html' => 'Agava',
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          unlike $res->content, qr{Agava};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 2, name => 'LICENSE directory';
+
 run_tests;
 
 =head1 LICENSE
