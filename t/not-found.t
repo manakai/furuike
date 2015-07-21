@@ -136,6 +136,7 @@ test {
           is $res->code, 404;
           is $res->header ('Content-Type'), 'text/html; charset=utf-8';
           is $res->header ('Content-Language'), $x->[2];
+          is $res->header ('Vary'), 'Accept-Language';
           is $res->content, $x->[3];
         } $c, name => $x->[0];
       });
@@ -144,7 +145,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 4 * 3, name => 'ErrorDocument';
+} n => 5 * 3, name => 'ErrorDocument';
 
 test {
   my $c = shift;
@@ -230,15 +231,16 @@ test {
         test {
           is $res->code, 404;
           is $res->header ('Content-Type'), 'text/plain; charset=euc-jp';
+          is $res->header ('X-Content-Type-Options'), 'nosniff';
           is $res->content, 'aaa<p>';
-        } $c, name => $x->[1] // $x->[0];
+        } $c, name => $x->[0];
       });
     }
     return $p->then (sub {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 3 * 2, name => 'ErrorDocument';
+} n => 4 * 2, name => 'ErrorDocument';
 
 run_tests;
 

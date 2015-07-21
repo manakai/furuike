@@ -60,6 +60,11 @@ my $MIMETypeToPriority = {};
   );
 }
 
+my $MIMETypeToNoSniff = {};
+$MIMETypeToNoSniff->{$_} = 1 for qw(
+  text/plain text/html application/octet-stream
+);
+
 my $CharsetTypeByMIMEType = {
   'text/html' => 'default',
   'text/plain' => 'default',
@@ -267,9 +272,14 @@ sub send_file ($$$$$$) {
         } else {
           $http->set_response_header ('Content-Type' => $type);
         }
+        if ($MIMETypeToNoSniff->{$type}) {
+          $http->set_response_header ('X-Content-Type-Options' => 'nosniff');
+        }
       }
-      $http->set_response_header ('Content-Language' => $meta->{lang})
-          if defined $meta->{lang};
+      if (defined $meta->{lang}) {
+        $http->set_response_header ('Content-Language' => $meta->{lang});
+        $http->set_response_header ('Vary' => 'Accept-Language');
+      }
       $http->set_response_header ('Content-Encoding' => $meta->{encoding})
           if defined $meta->{encoding};
       $http->send_response_body_as_ref (\($_[0]));
@@ -295,6 +305,7 @@ sub send_directory ($$$$$) {
       $http->set_status (200);
       $http->set_response_last_modified ($mtime);
       $http->set_response_header ('Content-Type' => 'text/html; charset=utf-8');
+      $http->set_response_header ('X-Content-Type-Options' => 'nosniff');
       my $has_readme;
       my $dir_name = $dir_path->basename;
       my $x = '';

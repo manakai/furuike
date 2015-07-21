@@ -197,6 +197,7 @@ test {
         test {
           is $res->code, 200;
           is $res->header ('Content-Type'), $x->[1];
+          is $res->header ('X-Content-Type-Options'), defined $x->[1] ? 'nosniff' : undef;
         } $c, name => $x->[0];
       });
     }
@@ -204,7 +205,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 9 * 2, name => 'README and LICENSE';
+} n => 9 * 3, name => 'README and LICENSE';
 
 run_tests;
 
