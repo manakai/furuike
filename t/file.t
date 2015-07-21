@@ -81,6 +81,7 @@ test {
         test {
           is $res->code, 200;
           is $res->header ('Content-Type'), q{text/plain; charset=utf-8};
+          is $res->header ('X-Content-Type-Options'), 'nosniff';
           is $res->content, q{abc
 あいうえお
 };
@@ -108,7 +109,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 3 * 3 + 4 * 3;
+} n => 4 * 3 + 4 * 3;
 
 test {
   my $c = shift;

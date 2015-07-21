@@ -20,6 +20,7 @@ test {
         test {
           is $res->code, 200;
           is $res->header ('Content-Type'), q{text/html; charset=utf-8};
+          is $res->header ('X-Content-Type-Options'), q{nosniff};
           like $res->header ('Last-Modified'), qr{GMT};
           unlike $res->header ('Last-Modified'), qr{ 1970 };
           like $res->content, qr{</ul>};
@@ -30,7 +31,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 2 * 5, name => 'document root, empty';
+} n => 2 * 6, name => 'document root, empty';
 
 test {
   my $c = shift;

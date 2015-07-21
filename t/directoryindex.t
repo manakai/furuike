@@ -116,9 +116,11 @@ test {
         test {
           is $res->code, 200;
           is $res->header ('Content-Type'), q{text/html; charset=utf-8};
+          is $res->header ('X-Content-Type-Options'), q{nosniff};
           like $res->header ('Last-Modified'), qr{GMT};
           unlike $res->header ('Last-Modified'), qr{ 1970 };
           is $res->header ('Content-Language'), $x->[3];
+          is $res->header ('Vary'), 'Accept-Language';
           is $res->content, $x->[2];
         } $c, name => $x->[0];
       });
@@ -127,7 +129,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 6 * 2, name => 'DirectoryIndex';
+} n => 8 * 2, name => 'DirectoryIndex';
 
 test {
   my $c = shift;
