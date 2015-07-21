@@ -6,6 +6,7 @@ use Wanage::URL;
 use AnyEvent::IO;
 use Promise;
 use Promised::File;
+use Furuike::HTAccessParser;
 
 my $Segment = qr/~?[A-Za-z0-9_-][A-Za-z0-9_.-]*/;
 
@@ -215,8 +216,12 @@ sub send_directory ($$$$$) {
       my $dir_name = $path->basename;
       my $x = '';
       my $n = @$path_segments - 3;
-      my $t = sprintf q{
-        <!DOCTYPE HTML><title>%s</title><h1><a href=/ rel=top><code>%s</code></a>%s</h1>
+      my $t = q{<!DOCTYPE HTML>};
+      $t .= sprintf q{<link rel=stylesheet href="%s">},
+          htescape $config->{index_style_sheet}
+          if defined $config->{index_style_sheet};
+      $t .= sprintf q{
+        <title>%s</title><h1><a href=/ rel=top><code>%s</code></a>%s</h1>
         <ul>
           %s
         </ul>
@@ -254,76 +259,77 @@ sub send_directory ($$$$$) {
   });
 } # send_directory
 
-sub send_conneg ($$$$) {
-  my ($http, $config, $p, $fallback) = @_;
-  my $dir_path = $p->parent;
-  my $base_name = $p->basename;
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    aio_readdir $dir_path, sub {
-      my ($names) = @_ or return $ng->($!);
-      return $ok->($names);
-    };
-  })->then (sub {
-    my $files = [map {
-      if (/\A$base_name\./) {
-        my $meta = file_name_to_metadata $config, $_;
-        if (length $_ <= length join '.', $base_name, @{$meta->{suffixes}}) {
-          ($meta);
-        } else {
-          ();
-        }
+sub conneg ($$$$$) {
+  my ($http, $config, $names, $dir_path, $specified_names) = @_;
+  return undef unless @$specified_names;
+  my $bns = {};
+  {
+    my $i = 1;
+    for (reverse @$specified_names) {
+      $bns->{$_} = $i++;
+    }
+  }
+  my $bn_pattern = join '|', map { quotemeta $_ } @$specified_names;
+  my $files = [map {
+    if (/\A($bn_pattern)\./) {
+      my $bn = $1;
+      my $meta = file_name_to_metadata $config, $_;
+      $meta->{name_priority} = $bns->{$1};
+      if (length $_ <= length join '.', $bn, @{$meta->{suffixes}}) {
+        ($meta);
       } else {
         ();
       }
-    } @{$_[0]}];
+    } else {
+      ();
+    }
+  } @$names];
 
+  my $lang_to_priority = {};
+  {
     my $i = 1;
-    my $lang_to_priority = {};
     for (reverse @{$http->accept_langs}) {
       $lang_to_priority->{$_} = $i++;
     }
-    for (@$files) {
-      $_->{type_priority} = $MIMETypeToPriority->{$_->{type} // ''} || 0;
-      $_->{lang_priority} = $lang_to_priority->{lc ($_->{lang} // '')} || 0;
-      $_->{charset_priority} = ($_->{charset} // '') eq 'utf-8' ? 1 : 0;
-    }
-    $files = [sort {
-      $b->{type_priority} <=> $a->{type_priority} ||
-      $b->{lang_priority} <=> $a->{lang_priority} ||
-      $b->{charset_priority} <=> $a->{charset_priority};
-    } @$files];
+  }
+  for (@$files) {
+    $_->{type_priority} = $MIMETypeToPriority->{$_->{type} // ''} || 0;
+    $_->{lang_priority} = $lang_to_priority->{lc ($_->{lang} // '')} || 0;
+    $_->{charset_priority} = ($_->{charset} // '') eq 'utf-8' ? 1 : 0;
+  }
+  $files = [sort {
+    $b->{name_priority} <=> $a->{name_priority} ||
+    $b->{type_priority} <=> $a->{type_priority} ||
+    $b->{lang_priority} <=> $a->{lang_priority} ||
+    $b->{charset_priority} <=> $a->{charset_priority};
+  } @$files];
 
-    return undef unless @$files;
+  return undef unless @$files;
 
-    my $select_file; $select_file = sub {
-      my $file = shift @$files;
-      return undef unless defined $file;
-      my $path = $dir_path->child ($file->{file_name});
-      my $f = Promised::File->new_from_path ($path);
-      return $f->lstat->then (sub {
-        if (not -l $_[0] and -f $_[0]) {
-          return [$path, $f, $file];
-        } else {
-          return $select_file->();
-        }
+  my $select_file; $select_file = sub {
+    my $file = shift @$files;
+    return undef unless defined $file;
+    my $path = $dir_path->child ($file->{file_name});
+    my $f = Promised::File->new_from_path ($path);
+    return $f->lstat->then (sub {
+      if (not -l $_[0] and -f $_[0]) {
+        return [$path, $f, $file];
+      } else {
+        return $select_file->();
+      }
       }, sub {
         return $select_file->();
       });
-    }; # $select_file
+  }; # $select_file
 
-    return Promise->resolve ($select_file->())->then (sub {
-      undef $select_file;
-      return $_[0];
-    }, sub {
-      undef $select_file;
-      die $_[0];
-    });
-  })->then (sub {
-    return send_file $http, $config, $_[0]->[0], $_[0]->[1], $_[0]->[2] if $_[0];
-    return $fallback->();
+  return Promise->resolve ($select_file->())->then (sub {
+    undef $select_file;
+    return $_[0]; # or undef
+  }, sub {
+    undef $select_file;
+    die $_[0];
   });
-} # send_conneg
+} # conneg
 
 sub check_htaccess ($$) {
   my $config = $_[1];
@@ -332,7 +338,6 @@ sub check_htaccess ($$) {
   return $f->is_file->then (sub {
     if ($_[0]) {
       return $f->read_char_string->then (sub {
-        use Furuike::HTAccessParser;
         my $parser = Furuike::HTAccessParser->new;
         my $has_fatal_error;
         $parser->onerror (sub {
@@ -382,9 +387,40 @@ sub check_htaccess ($$) {
                   unless $type =~ /\A[a-z0-9_.+:-]+\z/;
               $config->{default_charset} = $type;
             }
+          } elsif ($directive eq 'IndexOptions') {
+            for (@{$data->{$directive}}) {
+              my $type = $_->{name};
+              die "Bad IndexOption - $type" unless {
+                NameWidth => 1,
+                DescriptionWidth => 1,
+                TrackModified => 1,
+                HTMLTable => 1,
+                IconsAreLinks => 1,
+              }->{$type};
+              if ($_->{'+'}) {
+                $config->{index_options}->{$type} = $_->{value} // '';
+              } elsif ($_->{'-'}) {
+                die "Bad directive - IndexOptions -$_->{name}=$_->{value}"
+                    if defined $_->{value};
+                delete $config->{index_options}->{$type};
+              } else {
+                $config->{index_options} = {};
+                $config->{index_options}->{$type} = $_->{value} // '';
+              }
+            }
+          } elsif ($directive eq 'DirectoryIndex') {
+            for (@{$data->{$directive}}) {
+              for (@{$_->{values}}) {
+                die "Bad directive - DirectoryIndex $_" unless /\A$Segment\z/o;
+              }
+              $config->{directory_index} = $_->{values};
+            }
+          } elsif ($directive eq 'IndexStyleSheet') {
+            for (@{$data->{$directive}}) {
+              $config->{index_style_sheet} = $_->{url};
+            }
 
-            # XXX IndexStyleSheet DirectoryIndex ReadmeName
-            # ErrorDocument Redirect IndexOptions
+            # XXX ReadmeName ErrorDocument Redirect
 
           } else {
             # XXX
@@ -415,6 +451,7 @@ sub psgi_app ($$) {
         ext_to_mime_type => {%$ExtToMIMEType},
         ext_to_charset => {%$ExtToCharset},
         ext_to_encoding => {%$ExtToEncoding},
+        directory_index => ['index'],
       };
 
       my $add_path; $add_path = sub {
@@ -423,9 +460,21 @@ sub psgi_app ($$) {
           $f ||= Promised::File->new_from_path ($p);
           return $f->lstat->then (sub {
             if (not -l $_[0] and -d $_[0]) {
-              return send_conneg $http, $config, $p->child ('index'), sub {
-                return send_directory $http, $config, \@p, $p, $f;
-              };
+              return Promise->new (sub {
+                my ($ok, $ng) = @_;
+                aio_readdir $p, sub {
+                  my ($names) = @_ or return $ng->($!);
+                  return $ok->($names);
+                };
+              })->then (sub {
+                return conneg $http, $config, $_[0], $p, $config->{directory_index};
+              })->then (sub {
+                if (defined $_[0]) {
+                  return send_file $http, $config, $_[0]->[0], $_[0]->[1], $_[0]->[2];
+                } else {
+                  return send_directory $http, $config, \@p, $p, $f;
+                }
+              });
             } else {
               return not_found $http, 'Directory not found';
             }
@@ -453,9 +502,22 @@ sub psgi_app ($$) {
               } elsif (defined $stat and -d $stat) {
                 return redirect $http, 301, (percent_encode_c $segment) . '/';
               } else {
-                return send_conneg $http, $config, $p, sub {
-                  return not_found $http, 'File not found';
-                };
+                my $parent_path = $p->parent;
+                return Promise->new (sub {
+                  my ($ok, $ng) = @_;
+                  aio_readdir $parent_path, sub {
+                    my ($names) = @_ or return $ng->($!);
+                    return $ok->($names);
+                  };
+                })->then (sub {
+                  return conneg ($http, $config, $_[0], $parent_path, [$segment]);
+                })->then (sub {
+                  if (defined $_[0]) {
+                    return send_file $http, $config, $_[0]->[0], $_[0]->[1], $_[0]->[2];
+                  } else {
+                    return not_found $http, 'File not found';
+                  }
+                });
               }
             }
           });

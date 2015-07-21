@@ -119,7 +119,17 @@ $DirectiveParsers->{IndexOptions} = sub {
     return $self->onerror->(level => 'm', type => 'htaccess:IndexOptions:syntax error', value => $_)
         unless /\A[A-Za-z0-9]+\z/;
     $v->{name} = $_;
+    push @{$self->{data}->{$name} ||= []}, $v;
   }
 }; # IndexOptions
 
 1;
+
+=head1 LICENSE
+
+Copyright 2015 Wakaba <wakaba@suikawiki.org>.
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+=cut

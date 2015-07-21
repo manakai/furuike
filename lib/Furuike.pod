@@ -38,12 +38,19 @@ returned.
 
 If the final path segment is the empty string and identifies a
 directory (e.g. C</path/to/directory/>), the content of a directory
-index file, if any, or a simple HTML document representing the list of
-the files and the directories in the directory is returned.  A
-directory index file is a file that would be selected if the last path
-segment were C<index> (e.g. C</path/to/directory/index>).  As the file
-name extensions can be omitted, the file name might be
-C<index.ja.html>, C<index.svg.gz>, or C<index.txt>.
+index file, if any, or the directory index view for the directory.
+
+A directory index file is a file that would be selected if the last
+path segment were C<index> (e.g. C</path/to/directory/index>).  As the
+file name extensions can be omitted, the file name might be
+C<index.ja.html>, C<index.svg.gz>, or C<index.txt>.  The
+C<DirectoryIndex> directive can be used to specify another last path
+segment in use.
+
+The directory index view for the directory is a simple HTML document
+representing the list of the files and the directories in the
+directory.  The document can be customized by C<IndexStyleSheet> and
+C<IndexOptions> directives.
 
 If the final path segment is not the empty string and identifies a
 directory (e.g. C</path/to/directory>), a 301 response redirecting to
@@ -146,7 +153,9 @@ extension in the file name of the response (not the last path segment
 itself, in case some file name extensions are omitted in the URL), if
 any.  The language file name extension is two ASCII lowercase letters,
 optionally followed by C<-> followed by two ASCII letters
-(i.e. C<[a-z]{2}(?:-[a-zA-Z]{2}|)>).
+(i.e. C<[a-z]{2}(?:-[a-zA-Z]{2}|)>).  (More complex language tags are
+not supported due to lack of use cases.  Please let me know if this is
+not enough.)
 
 If no language extension is found, no C<Content-Language:> header is
 set.
@@ -258,6 +267,52 @@ Set the default encoding label, which is used as the default value for
 the C<charset> parameter.
 
 This directive is DEPRECATED.  You should always use UTF-8.
+
+=item DirectoryIndex SEGMENT1 SEGMENT2 ...
+
+Specify the last path segments for the directory index.  There can be
+one or more arguments, which must be valid non-empty path segments, as
+described in earlier section.  The order of the arguments is
+interpreted as preference.
+
+For example,
+
+  DirectoryIndex top index
+
+... will result in returning C<index.ja.html> as the directory index
+if there is only C<index.ja.html>, or C<top.en.txt> if there is also
+C<top.en.txt>.
+
+The default is C<index> such that e.g. C<index.html> is used.
+
+=item IndexStyleSheet "URL"
+
+Specify the CSS style sheet URL for the directory index view.  The
+argument must be a C<">-quoted URL.  By default, no style sheet is
+specified.
+
+=item IndexOptions OPTION1 OPTION2 ...
+
+Specify options for the directory index view.  Options can be
+specified as zero or more arguments for the directive.
+
+Options must be option name optionally preceded by C<+> or C<-> sign.
+If the option name is not preceded by a C<-> sign, the option value
+can be specified by separating a C<=> character.  An option value is a
+string of zero or more non-space characters.
+
+The option specifications are interpreted in order.  If the option
+name is not preceded by any sign, it clears any current options and
+sets an option.  If the option name is preceded by a C<+> sign, it
+sets an option.  If the option name is preceded by a C<-> sign, it
+removes an option.  If the option value is specified, it is set to the
+option.  Otherwise, the empty string is set to the option.
+
+The option name can be one of following values:
+
+  NameWidth DescriptionWidth TrackModified HTMLTable IconsAreLinks
+
+These options have no effect.  Use of them are DEPRECATED.
 
 =back
 
