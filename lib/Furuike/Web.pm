@@ -515,139 +515,118 @@ sub check_htaccess ($$) {
         });
         my $data = $parser->parse_char_string ($_[0]);
         die "$htaccess_path is broken" if $has_fatal_error;
-        for my $directive (keys %$data) {
-          if ($directive eq 'AddType') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{type};
-              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
-              $config->{ext_to_mime_type}->{$_} = $type for @{$_->{exts}};
+        for my $directive (@$data) {
+          if ($directive->{name} eq 'AddType') {
+            my $type = $directive->{type};
+            $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+            $config->{ext_to_mime_type}->{$_} = $type for @{$directive->{exts}};
+          } elsif ($directive->{name} eq 'AddCharset') {
+            my $type = $directive->{type};
+            $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+            $config->{ext_to_charset}->{$_} = $type for @{$directive->{exts}};
+          } elsif ($directive->{name} eq 'AddEncoding') {
+            my $type = $directive->{type};
+            $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+            $config->{ext_to_encoding}->{$_} = $type for @{$directive->{exts}};
+          } elsif ($directive->{name} eq 'AddLanguage') {
+            my $type = $directive->{type};
+            $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+            die "Bad directive - AddLanguage $type"
+                unless $type =~ /\A[a-z][a-z](?:-[a-z][a-z]|)\z/;
+            for (@{$directive->{exts}}) {
+              die "Bad directive - AddLanguage $type $_"
+                  unless $type eq lc $_ and /^[a-z][a-z]/;
             }
-          } elsif ($directive eq 'AddCharset') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{type};
-              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
-              $config->{ext_to_charset}->{$_} = $type for @{$_->{exts}};
+          } elsif ($directive->{name} eq 'AddDefaultCharset') {
+            my $type = $directive->{value};
+            $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+            die "Bad directive - AddDefaultCharset $type"
+                unless $type =~ /\A[a-z0-9_.+:-]+\z/;
+            $config->{default_charset} = $type;
+          } elsif ($directive->{name} eq 'Options') {
+            my $type = $directive->{option_name};
+            die "Bad Options - $type" unless {
+              MultiViews => 1,
+              ExecCGI => 1,
+            }->{$type};
+            if ($directive->{'+'}) {
+              $config->{options}->{$type} = $directive->{option_value} // '';
+            } elsif ($directive->{'-'}) {
+              die "Bad directive - Options -$directive->{option_name}=$directive->{option_value}"
+                  if defined $directive->{option_value};
+              delete $config->{options}->{$type};
+            } else {
+              $config->{options} = {};
+              $config->{options}->{$type} = $directive->{option_value} // '';
             }
-          } elsif ($directive eq 'AddEncoding') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{type};
-              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
-              $config->{ext_to_encoding}->{$_} = $type for @{$_->{exts}};
+          } elsif ($directive->{name} eq 'IndexOptions') {
+            my $type = $directive->{option_name};
+            die "Bad IndexOptions - $type" unless {
+              NameWidth => 1,
+              DescriptionWidth => 1,
+              TrackModified => 1,
+              HTMLTable => 1,
+              IconsAreLinks => 1,
+              charset => 1,
+            }->{$type};
+            $directive->{option_value} =~ tr/A-Z/a-z/
+                if $type eq 'charset' and defined $directive->{option_value};
+            if ($directive->{'+'}) {
+              $config->{index_options}->{$type} = $directive->{option_value} // '';
+            } elsif ($directive->{'-'}) {
+              die "Bad directive - IndexOptions -$directive->{option_name}=$directive->{option_value}"
+                  if defined $directive->{option_value};
+              delete $config->{index_options}->{$type};
+            } else {
+              $config->{index_options} = {};
+              $config->{index_options}->{$type} = $directive->{option_value} // '';
             }
-          } elsif ($directive eq 'AddLanguage') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{type};
-              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
-              die "Bad directive - AddLanguage $type"
-                  unless $type =~ /\A[a-z][a-z](?:-[a-z][a-z]|)\z/;
-              for (@{$_->{exts}}) {
-                die "Bad directive - AddLanguage $type $_"
-                    unless $type eq lc $_ and /^[a-z][a-z]/;
+          } elsif ($directive->{name} eq 'DirectoryIndex') {
+            for (@{$directive->{values}}) {
+              die "Bad directive - DirectoryIndex $_" unless /\A$Segment\z/o;
+            }
+            $config->{directory_index} = $directive->{values};
+          } elsif ($directive->{name} eq 'IndexStyleSheet') {
+            $config->{index_style_sheet} = $directive->{url};
+          } elsif ($directive->{name} eq 'ReadmeName') {
+            die "Bad directive - ReadmeName $directive->{value}"
+                unless $directive->{value} =~ /\A$Segment\z/o;
+            $config->{readme_name} = $directive->{value};
+          } elsif ($directive->{name} eq 'HeaderName') {
+            for (@{$directive->{values}}) {
+              die "Bad directive - ReadmeName $directive->{value}"
+                  unless $directive->{value} =~ /\A$Segment\z/o;
+              $config->{header_name} = $directive->{value};
+            }
+          } elsif ($directive->{name} eq 'ErrorDocument') {
+            if ($directive->{path} =~ m{\A(?:/$Segment)+\z}o) {
+              $config->{error_document}->{$directive->{status}}
+                  = [grep { length } split m{/}, $directive->{path}];
+            } else {
+              die "Bad path $directive->{path}";
+            }
+          } elsif ($directive->{name} eq 'Redirect') {
+            my @from = split m{/}, $directive->{from}, -1;
+            shift @from;
+            my $from_last = pop @from;
+            my $current = $config->{virtual};
+            for (@from) {
+              $current->{children}->{$_} ||= {};
+              $current = $current->{children}->{$_};
+              $current->{is_directory} = 1;
+            }
+            $current->{children}->{$from_last} ||= {};
+            $current = $current->{children}->{$from_last};
+            if (defined $directive->{to}) {
+              my $to = $directive->{to};
+              for (keys %{$config->{redirect_top} or {}}) {
+                $to =~ s{^\Q$_\E}{/} and last;
               }
+              $current->{location} = $to;
             }
-          } elsif ($directive eq 'AddDefaultCharset') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{value};
-              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
-              die "Bad directive - AddDefaultCharset $type"
-                  unless $type =~ /\A[a-z0-9_.+:-]+\z/;
-              $config->{default_charset} = $type;
-            }
-          } elsif ($directive eq 'Options') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{name};
-              die "Bad Options - $type" unless {
-                MultiViews => 1,
-                ExecCGI => 1,
-              }->{$type};
-              if ($_->{'+'}) {
-                $config->{options}->{$type} = $_->{value} // '';
-              } elsif ($_->{'-'}) {
-                die "Bad directive - Options -$_->{name}=$_->{value}"
-                    if defined $_->{value};
-                delete $config->{options}->{$type};
-              } else {
-                $config->{options} = {};
-                $config->{options}->{$type} = $_->{value} // '';
-              }
-            }
-          } elsif ($directive eq 'IndexOptions') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{name};
-              die "Bad IndexOptions - $type" unless {
-                NameWidth => 1,
-                DescriptionWidth => 1,
-                TrackModified => 1,
-                HTMLTable => 1,
-                IconsAreLinks => 1,
-                charset => 1,
-              }->{$type};
-              $_->{value} =~ tr/A-Z/a-z/
-                  if $type eq 'charset' and defined $_->{value};
-              if ($_->{'+'}) {
-                $config->{index_options}->{$type} = $_->{value} // '';
-              } elsif ($_->{'-'}) {
-                die "Bad directive - IndexOptions -$_->{name}=$_->{value}"
-                    if defined $_->{value};
-                delete $config->{index_options}->{$type};
-              } else {
-                $config->{index_options} = {};
-                $config->{index_options}->{$type} = $_->{value} // '';
-              }
-            }
-          } elsif ($directive eq 'DirectoryIndex') {
-            for (@{$data->{$directive}}) {
-              for (@{$_->{values}}) {
-                die "Bad directive - DirectoryIndex $_" unless /\A$Segment\z/o;
-              }
-              $config->{directory_index} = $_->{values};
-            }
-          } elsif ($directive eq 'IndexStyleSheet') {
-            for (@{$data->{$directive}}) {
-              $config->{index_style_sheet} = $_->{url};
-            }
-          } elsif ($directive eq 'ReadmeName') {
-            for (@{$data->{$directive}}) {
-              die "Bad directive - ReadmeName $_->{value}"
-                  unless $_->{value} =~ /\A$Segment\z/o;
-              $config->{readme_name} = $_->{value};
-            }
-          } elsif ($directive eq 'HeaderName') {
-            for (@{$data->{$directive}}) {
-              for (@{$_->{values}}) {
-                die "Bad directive - ReadmeName $_->{value}"
-                    unless $_->{value} =~ /\A$Segment\z/o;
-              }
-              $config->{header_name} = $_->{value};
-            }
-          } elsif ($directive eq 'ErrorDocument') {
-            for (@{$data->{$directive}}) {
-              if ($_->{path} =~ m{\A(?:/$Segment)+\z}o) {
-                $config->{error_document}->{$_->{status}}
-                    = [grep { length } split m{/}, $_->{path}];
-              } else {
-                die "Bad path $_->{path}";
-              }
-            }
-          } elsif ($directive eq 'Redirect') {
-            for (@{$data->{$directive}}) {
-              my @from = split m{/}, $_->{from}, -1;
-              shift @from;
-              my $from_last = pop @from;
-              my $current = $config->{virtual};
-              for (@from) {
-                $current->{children}->{$_} ||= {};
-                $current = $current->{children}->{$_};
-                $current->{is_directory} = 1;
-              }
-              $current->{children}->{$from_last} ||= {};
-              $current = $current->{children}->{$from_last};
-              if ($_->{to}) {
-                # XXX url prefix
-                $current->{location} = $_->{to};
-              }
-              $current->{status} = $_->{status};
-            }
+            $current->{status} = $directive->{status};
+          } elsif ($directive->{name} eq 'FuruikeRedirectTop') {
+            $config->{redirect_top}->{$directive->{url}} = 1;
 
 
             # XXX IndexIgnore AddHandler
@@ -657,7 +636,7 @@ sub check_htaccess ($$) {
           } else {
             # XXX
             #die
-            warn "Unknown directive |$directive|";
+            warn "Unknown directive |$directive->{name}|";
           }
         }
       });

@@ -17,7 +17,7 @@ my $DirectiveParsers = {};
 
 sub parse_char_string ($$) {
   my ($self, $s) = @_;
-  $self->{data} = {};
+  $self->{data} = [];
   my $onerror = $self->onerror;
   $s =~ s/\x0D\x0A/\x0A/g;
   $s =~ s/\x0D/\x0A/g;
@@ -58,7 +58,7 @@ $DirectiveParsers->{ReadmeName} =
 $DirectiveParsers->{AddDefaultCharset} = sub {
   my ($self, $name, $args) = @_;
   if ($args =~ m{^\s*(\S+)\s*$}) {
-    push @{$self->{data}->{$name} ||= []}, {value => $1};
+    push @{$self->{data}}, {name => $name, value => $1};
   } else {
     $self->onerror->(level => 'm', type => 'htaccess:value:syntax error', value => $args);
   }
@@ -67,7 +67,7 @@ $DirectiveParsers->{AddDefaultCharset} = sub {
 $DirectiveParsers->{IndexStyleSheet} = sub {
   my ($self, $name, $args) = @_;
   if ($args =~ m{^\s*"([^"]*)"\s*$}) {
-    push @{$self->{data}->{$name} ||= []}, {url => $1};
+    push @{$self->{data}}, {name => $name, url => $1};
   } else {
     $self->onerror->(level => 'm', type => 'htaccess:url:syntax error', value => $args);
   }
@@ -77,7 +77,7 @@ $DirectiveParsers->{IndexIgnore} =
 $DirectiveParsers->{DirectoryIndex} = sub {
   my ($self, $name, $args) = @_;
   if ($args =~ m{^\s*\S+(?:\s+\S+)*\s*$}) {
-    push @{$self->{data}->{$name} ||= []}, {values => [grep { length } split /\s+/, $args]};
+    push @{$self->{data}}, {name => $name, values => [grep { length } split /\s+/, $args]};
   } else {
     $self->onerror->(level => 'm', type => 'htaccess:values:syntax error', value => $args);
   }
@@ -92,7 +92,7 @@ $DirectiveParsers->{AddCharset} = sub {
   if ($args =~ m{^\s*([A-Za-z0-9_.,+:/-]+)\s+(\S+(?:\s+\S+)*)\s*$}) {
     my $type = $1;
     my $exts = [grep { length } map { s/^\.//; $_ } split /\s+/, $2];
-    push @{$self->{data}->{$name} ||= []}, {type => $type, exts => $exts};
+    push @{$self->{data}}, {name => $name, type => $type, exts => $exts};
   } else {
     $self->onerror->(level => 'm', type => 'htaccess:Add:syntax error', value => $args);
   }
@@ -101,7 +101,7 @@ $DirectiveParsers->{AddCharset} = sub {
 $DirectiveParsers->{ErrorDocument} = sub {
   my ($self, $name, $args) = @_;
   if ($args =~ m{^\s*([45][0-9][0-9])\s+(\S+)\s*$}) {
-    push @{$self->{data}->{$name} ||= []}, {status => $1, path => $2};
+    push @{$self->{data}}, {name => $name, status => $1, path => $2};
   } else {
     $self->onerror->(level => 'm', type => 'htaccess:ErrorDocument:syntax error', value => $args);
   }
@@ -110,20 +110,20 @@ $DirectiveParsers->{ErrorDocument} = sub {
 $DirectiveParsers->{Redirect} = sub {
   my ($self, $name, $args) = @_;
   if ($args =~ m{^\s*(30[12378]|permanent|temp|seeother)\s+(/\S+)\s+(\S+)\s*$}) {
-    push @{$self->{data}->{$name} ||= []}, {status => $1, from => $2, to => $3};
+    push @{$self->{data}}, {name => $name, status => $1, from => $2, to => $3};
   } elsif ($args =~ m{^\s*([45][0-9][0-9]|gone)\s+(/\S+)\s*$}) {
-    push @{$self->{data}->{$name} ||= []}, {status => $1, from => $2};
+    push @{$self->{data}}, {name => $name, status => $1, from => $2};
   } elsif ($args =~ m{^\s*(/\S+)\s+(\S+)\s*$}) {
-    push @{$self->{data}->{$name} ||= []}, {status => 302, from => $1, to => $2};
+    push @{$self->{data}}, {name => $name, status => 302, from => $1, to => $2};
   } else {
     $self->onerror->(level => 'm', type => 'htaccess:Redirect:syntax error', value => $args);
   }
-  $self->{data}->{$name}->[-1]->{status} = {
+  $self->{data}->[-1]->{status} = {
     gone => 410,
     permanent => 301,
     temp => 302,
     seeother => 303,
-  }->{$self->{data}->{$name}->[-1]->{status}} || $self->{data}->{$name}->[-1]->{status};
+  }->{$self->{data}->[-1]->{status}} || $self->{data}->[-1]->{status};
 }; # Redirect
 
 $DirectiveParsers->{Options} =
@@ -132,13 +132,23 @@ $DirectiveParsers->{IndexOptions} = sub {
   for (grep { length } split /\s+/, $args) {
     my $v = {};
     $v->{$1} = 1 if s/^([+-])//;
-    $v->{value} = $1 if s/=(.*)$//;
+    $v->{option_value} = $1 if s/=(.*)$//;
     return $self->onerror->(level => 'm', type => 'htaccess:IndexOptions:syntax error', value => $_)
         unless /\A[A-Za-z0-9]+\z/;
-    $v->{name} = $_;
-    push @{$self->{data}->{$name} ||= []}, $v;
+    $v->{option_name} = $_;
+    $v->{name} = $name;
+    push @{$self->{data}}, $v;
   }
 }; # IndexOptions
+
+$DirectiveParsers->{FuruikeRedirectTop} = sub {
+  my ($self, $name, $args) = @_;
+  if ($args =~ m{^\s*(https?://[^/]+/)\s*$}) {
+    push @{$self->{data}}, {name => $name, url => $1};
+  } else {
+    $self->onerror->(level => 'm', type => 'htaccess:FuruikeRedirectTop:syntax error', value => $args);
+  }
+}; # FuruikeRedirectTop
 
 1;
 

@@ -223,7 +223,8 @@ optionally preceded by space characters, is ignored.
 
 In an C<.htaccess> file, the C<< <IfModule fileName> >> line, where
 I<fileName> is some opaque string, indicates that any following line
-should be ignored until C<< </IfModule> >> line is found.
+should be ignored until C<< </IfModule> >> line is found B<unless>
+I<fileName> is C<Furuike> or C<mod_headers.c>.
 
 In an C<.htaccess> file, a directive name can be followed by one or
 more arguments, as described in later subsection.
@@ -406,6 +407,20 @@ percent-decoded path segments prefixed by C</>.
 
 If there are conflicting file or directory and C<Redirect> directive,
 the C<Redirect> directive takes precedence.
+
+=item FuruikeRedirectTop SCHEME://AUTHORITY/
+
+Register a redirect URL replacement rule.  If the prefix of the third
+argument (i.e. URL) of the C<Redirect> directive (after this
+directive) is equal to the argument of this directive, it is replaced
+with a C</> character.
+
+For example,
+
+  FuruikeRedirectTop http://olddomain.example/
+  Redirect 302 /oldurl http://olddomain.example/newurl
+
+... is interpreted as C<Redirect 302 /oldurl /newurl>.
 
 =back
 
