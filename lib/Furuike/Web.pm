@@ -97,6 +97,7 @@ sub new_config () {
     header_name => undef,
     readme_name => 'README',
     license_name => 'LICENSE',
+    virtual => {is_directory => 1, children => {}},
   };
 } # new_config
 
@@ -425,9 +426,9 @@ sub send_directory ($$$$$) {
   });
 } # send_directory
 
-sub not_found ($$$$$) {
-  my ($http, $config, $docroot, $reason, $path) = @_;
-  if (defined (my $doc = $config->{error_document}->{404})) {
+sub error ($$$$$$) {
+  my ($http, $config, $docroot, $status, $reason, $path) = @_;
+  if (defined (my $doc = $config->{error_document}->{$status})) {
     ## Note that symlink check is not performed for ErrorDocument
     my $dir_path = $docroot->child (@$doc[0..($#$doc-1)]);
     my $error_config = new_config;
@@ -468,32 +469,32 @@ sub not_found ($$$$$) {
       };
     })->then (sub {
       if (defined $_[0]) {
-        return send_file $http, $error_config, $_[0]->[0], $_[0]->[1], $_[0]->[2], 404;
+        return send_file $http, $error_config, $_[0]->[0], $_[0]->[1], $_[0]->[2], $status;
       } else {
-        $http->set_status (404);
+        $http->set_status ($status);
         $http->set_response_header ('Content-Type' => 'text/plain; charset=utf-8');
-        $http->send_response_body_as_ref (\"404 $reason");
+        $http->send_response_body_as_ref (\"$status $reason");
         $http->close_response_body;
-        access_log $http, 404, $reason, $path;
+        access_log $http, $status, $reason, $path;
       }
     });
   } else {
-    $http->set_status (404);
+    $http->set_status ($status);
     $http->set_response_header ('Content-Type' => 'text/plain; charset=utf-8');
-    $http->send_response_body_as_ref (\"404 $reason");
+    $http->send_response_body_as_ref (\"$status $reason");
     $http->close_response_body;
-    access_log $http, 404, $reason, $path;
+    access_log $http, $status, $reason, $path;
   }
-} # not_found
+} # error
 
-sub redirect ($$$) {
-  my ($http, $status, $url) = @_;
+sub redirect ($$$$) {
+  my ($http, $status, $url, $reason) = @_;
   $http->set_status ($status);
   $http->set_response_header ('Location' => $url);
   $http->set_response_header ('Content-Type' => 'text/html; charset=utf-8');
   $http->send_response_body_as_ref (\sprintf q{<!DOCTYPE html><title>Redirect</title><a href="%s">Next</a>}, htescape $url);
   $http->close_response_body;
-  access_log $http, $status, 'Redirect';
+  access_log $http, $status, $reason;
 } # redirect
 
 sub check_htaccess ($$) {
@@ -514,129 +515,128 @@ sub check_htaccess ($$) {
         });
         my $data = $parser->parse_char_string ($_[0]);
         die "$htaccess_path is broken" if $has_fatal_error;
-        for my $directive (keys %$data) {
-          if ($directive eq 'AddType') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{type};
-              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
-              $config->{ext_to_mime_type}->{$_} = $type for @{$_->{exts}};
+        for my $directive (@$data) {
+          if ($directive->{name} eq 'AddType') {
+            my $type = $directive->{type};
+            $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+            $config->{ext_to_mime_type}->{$_} = $type for @{$directive->{exts}};
+          } elsif ($directive->{name} eq 'AddCharset') {
+            my $type = $directive->{type};
+            $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+            $config->{ext_to_charset}->{$_} = $type for @{$directive->{exts}};
+          } elsif ($directive->{name} eq 'AddEncoding') {
+            my $type = $directive->{type};
+            $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+            $config->{ext_to_encoding}->{$_} = $type for @{$directive->{exts}};
+          } elsif ($directive->{name} eq 'AddLanguage') {
+            my $type = $directive->{type};
+            $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+            die "Bad directive - AddLanguage $type"
+                unless $type =~ /\A[a-z][a-z](?:-[a-z][a-z]|)\z/;
+            for (@{$directive->{exts}}) {
+              die "Bad directive - AddLanguage $type $_"
+                  unless $type eq lc $_ and /^[a-z][a-z]/;
             }
-          } elsif ($directive eq 'AddCharset') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{type};
-              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
-              $config->{ext_to_charset}->{$_} = $type for @{$_->{exts}};
+          } elsif ($directive->{name} eq 'AddDefaultCharset') {
+            my $type = $directive->{value};
+            $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+            die "Bad directive - AddDefaultCharset $type"
+                unless $type =~ /\A[a-z0-9_.+:-]+\z/;
+            $config->{default_charset} = $type;
+          } elsif ($directive->{name} eq 'Options') {
+            my $type = $directive->{option_name};
+            die "Bad Options - $type" unless {
+              MultiViews => 1,
+              ExecCGI => 1,
+            }->{$type};
+            if ($directive->{'+'}) {
+              $config->{options}->{$type} = $directive->{option_value} // '';
+            } elsif ($directive->{'-'}) {
+              die "Bad directive - Options -$directive->{option_name}=$directive->{option_value}"
+                  if defined $directive->{option_value};
+              delete $config->{options}->{$type};
+            } else {
+              $config->{options} = {};
+              $config->{options}->{$type} = $directive->{option_value} // '';
             }
-          } elsif ($directive eq 'AddEncoding') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{type};
-              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
-              $config->{ext_to_encoding}->{$_} = $type for @{$_->{exts}};
+          } elsif ($directive->{name} eq 'IndexOptions') {
+            my $type = $directive->{option_name};
+            die "Bad IndexOptions - $type" unless {
+              NameWidth => 1,
+              DescriptionWidth => 1,
+              TrackModified => 1,
+              HTMLTable => 1,
+              IconsAreLinks => 1,
+              charset => 1,
+            }->{$type};
+            $directive->{option_value} =~ tr/A-Z/a-z/
+                if $type eq 'charset' and defined $directive->{option_value};
+            if ($directive->{'+'}) {
+              $config->{index_options}->{$type} = $directive->{option_value} // '';
+            } elsif ($directive->{'-'}) {
+              die "Bad directive - IndexOptions -$directive->{option_name}=$directive->{option_value}"
+                  if defined $directive->{option_value};
+              delete $config->{index_options}->{$type};
+            } else {
+              $config->{index_options} = {};
+              $config->{index_options}->{$type} = $directive->{option_value} // '';
             }
-          } elsif ($directive eq 'AddLanguage') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{type};
-              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
-              die "Bad directive - AddLanguage $type"
-                  unless $type =~ /\A[a-z][a-z](?:-[a-z][a-z]|)\z/;
-              for (@{$_->{exts}}) {
-                die "Bad directive - AddLanguage $type $_"
-                    unless $type eq lc $_ and /^[a-z][a-z]/;
+          } elsif ($directive->{name} eq 'DirectoryIndex') {
+            for (@{$directive->{values}}) {
+              die "Bad directive - DirectoryIndex $_" unless /\A$Segment\z/o;
+            }
+            $config->{directory_index} = $directive->{values};
+          } elsif ($directive->{name} eq 'IndexStyleSheet') {
+            $config->{index_style_sheet} = $directive->{url};
+          } elsif ($directive->{name} eq 'ReadmeName') {
+            die "Bad directive - ReadmeName $directive->{value}"
+                unless $directive->{value} =~ /\A$Segment\z/o;
+            $config->{readme_name} = $directive->{value};
+          } elsif ($directive->{name} eq 'HeaderName') {
+            for (@{$directive->{values}}) {
+              die "Bad directive - ReadmeName $directive->{value}"
+                  unless $directive->{value} =~ /\A$Segment\z/o;
+              $config->{header_name} = $directive->{value};
+            }
+          } elsif ($directive->{name} eq 'ErrorDocument') {
+            if ($directive->{path} =~ m{\A(?:/$Segment)+\z}o) {
+              $config->{error_document}->{$directive->{status}}
+                  = [grep { length } split m{/}, $directive->{path}];
+            } else {
+              die "Bad path $directive->{path}";
+            }
+          } elsif ($directive->{name} eq 'Redirect') {
+            my @from = split m{/}, $directive->{from}, -1;
+            shift @from;
+            my $from_last = pop @from;
+            my $current = $config->{virtual};
+            for (@from) {
+              $current->{children}->{$_} ||= {};
+              $current = $current->{children}->{$_};
+              $current->{is_directory} = 1;
+            }
+            $current->{children}->{$from_last} ||= {};
+            $current = $current->{children}->{$from_last};
+            if (defined $directive->{to}) {
+              my $to = $directive->{to};
+              for (keys %{$config->{redirect_top} or {}}) {
+                $to =~ s{^\Q$_\E}{/} and last;
               }
+              $current->{location} = $to;
             }
-          } elsif ($directive eq 'AddDefaultCharset') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{value};
-              $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
-              die "Bad directive - AddDefaultCharset $type"
-                  unless $type =~ /\A[a-z0-9_.+:-]+\z/;
-              $config->{default_charset} = $type;
-            }
-          } elsif ($directive eq 'Options') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{name};
-              die "Bad Options - $type" unless {
-                MultiViews => 1,
-                ExecCGI => 1,
-              }->{$type};
-              if ($_->{'+'}) {
-                $config->{options}->{$type} = $_->{value} // '';
-              } elsif ($_->{'-'}) {
-                die "Bad directive - Options -$_->{name}=$_->{value}"
-                    if defined $_->{value};
-                delete $config->{options}->{$type};
-              } else {
-                $config->{options} = {};
-                $config->{options}->{$type} = $_->{value} // '';
-              }
-            }
-          } elsif ($directive eq 'IndexOptions') {
-            for (@{$data->{$directive}}) {
-              my $type = $_->{name};
-              die "Bad IndexOptions - $type" unless {
-                NameWidth => 1,
-                DescriptionWidth => 1,
-                TrackModified => 1,
-                HTMLTable => 1,
-                IconsAreLinks => 1,
-                charset => 1,
-              }->{$type};
-              $_->{value} =~ tr/A-Z/a-z/
-                  if $type eq 'charset' and defined $_->{value};
-              if ($_->{'+'}) {
-                $config->{index_options}->{$type} = $_->{value} // '';
-              } elsif ($_->{'-'}) {
-                die "Bad directive - IndexOptions -$_->{name}=$_->{value}"
-                    if defined $_->{value};
-                delete $config->{index_options}->{$type};
-              } else {
-                $config->{index_options} = {};
-                $config->{index_options}->{$type} = $_->{value} // '';
-              }
-            }
-          } elsif ($directive eq 'DirectoryIndex') {
-            for (@{$data->{$directive}}) {
-              for (@{$_->{values}}) {
-                die "Bad directive - DirectoryIndex $_" unless /\A$Segment\z/o;
-              }
-              $config->{directory_index} = $_->{values};
-            }
-          } elsif ($directive eq 'IndexStyleSheet') {
-            for (@{$data->{$directive}}) {
-              $config->{index_style_sheet} = $_->{url};
-            }
-          } elsif ($directive eq 'ReadmeName') {
-            for (@{$data->{$directive}}) {
-              die "Bad directive - ReadmeName $_->{value}"
-                  unless $_->{value} =~ /\A$Segment\z/o;
-              $config->{readme_name} = $_->{value};
-            }
-          } elsif ($directive eq 'HeaderName') {
-            for (@{$data->{$directive}}) {
-              for (@{$_->{values}}) {
-                die "Bad directive - ReadmeName $_->{value}"
-                    unless $_->{value} =~ /\A$Segment\z/o;
-              }
-              $config->{header_name} = $_->{value};
-            }
-          } elsif ($directive eq 'ErrorDocument') {
-            for (@{$data->{$directive}}) {
-              if ($_->{path} =~ m{\A(?:/$Segment)+\z}o) {
-                $config->{error_document}->{$_->{status}}
-                    = [grep { length } split m{/}, $_->{path}];
-              } else {
-                die "Bad path $_->{path}";
-              }
-            }
+            $current->{status} = $directive->{status};
+          } elsif ($directive->{name} eq 'FuruikeRedirectTop') {
+            $config->{redirect_top}->{$directive->{url}} = 1;
 
-            # XXX Redirect IndexIgnore AddHandler
+
+            # XXX IndexIgnore AddHandler
 
             # XXX Options=ExecCGI HeaderName
 
           } else {
             # XXX
             #die
-            warn "Unknown directive |$directive|";
+            warn "Unknown directive |$directive->{name}|";
           }
         }
       });
@@ -658,10 +658,24 @@ sub psgi_app ($$) {
       my $f;
 
       my $config = new_config;
+      my $current_virtual = $config->{virtual};
 
       my $add_path; $add_path = sub {
         my $segment = $_[0];
-        if ($segment eq '' and not @path) { # last segment (directory)
+        if (not @path and $segment eq '') { # last segment (directory)
+          $current_virtual = $current_virtual->{children}->{$segment};
+          if (defined $current_virtual->{status}) {
+            if (defined $current_virtual->{location}) {
+              return redirect $http, $current_virtual->{status}, $current_virtual->{location}, 'Redirect';
+            } else {
+              return error $http, $config, $docroot,
+                  $current_virtual->{status}, 'Error', undef;
+            }
+          } elsif (not defined $p) {
+            return error $http, $config, $docroot,
+                404, 'Directory not found', undef;
+          }
+
           $f ||= Promised::File->new_from_path ($p);
           return $f->lstat->then (sub {
             if (not -l $_[0] and -d $_[0]) {
@@ -681,31 +695,87 @@ sub psgi_app ($$) {
                 }
               });
             } else {
-              return not_found $http, $config, $docroot, 'Directory not found', $p;
+              return error $http, $config, $docroot,
+                  404, 'Directory not found', $p;
             }
           }, sub {
-            return not_found $http, $config, $docroot, 'Directory not found', $p;
+            return error $http, $config, $docroot,
+                404, 'Directory not found', $p;
           });
-        } elsif ($segment =~ /\A$Segment\z/o) {
+        } elsif (@path and $segment =~ /\A$Segment\z/o) { # non-last segment
+          $current_virtual = $current_virtual->{children}->{$segment};
+          if (not $current_virtual->{is_directory}) {
+            if (defined $current_virtual->{status} and
+                not defined $current_virtual->{location}) {
+              return error $http, $config, $docroot,
+                  $current_virtual->{status}, 'Error', undef;
+            } elsif (not defined $p) {
+              return error $http, $config, $docroot,
+                  404, 'Directory not found', undef;
+            }
+          } elsif (not defined $p) {
+            return $add_path->(shift @path);
+          }
+
           $p = $p->child ($segment);
           $f = Promised::File->new_from_path ($p);
           return $f->lstat->catch (sub { return undef })->then (sub {
             my $stat = $_[0];
             if (defined $stat and -l $stat) {
-              return not_found $http, $config, $docroot, 'Bad path', $p;
-            } elsif (@path) { # non-last segment
-              if (defined $stat and -d $stat) {
-                return check_htaccess ($p, $config)->then (sub {
-                  return $add_path->(shift @path);
-                });
+              if ($current_virtual->{is_directory}) {
+                undef $p;
+                undef $f;
+                return $add_path->(shift @path);
               } else {
-                return not_found $http, $config, $docroot, 'Directory not found', $p;
+                return error $http, $config, $docroot,
+                    404, 'Bad path', $p;
               }
-            } else { # last segment
+            } elsif (defined $stat and -d $stat) {
+              return check_htaccess ($p, $config)->then (sub {
+                return $add_path->(shift @path);
+              });
+            } elsif ($current_virtual->{is_directory}) {
+              undef $p;
+              undef $f;
+              return $add_path->(shift @path);
+            } else {
+              return error $http, $config, $docroot,
+                  404, 'Directory not found', $p;
+            }
+          });
+        } elsif (not @path and $segment =~ /\A$Segment\z/o) { # last segment
+          $current_virtual = $current_virtual->{children}->{$segment};
+          if (defined $current_virtual->{status}) {
+            if (defined $current_virtual->{location}) {
+              return redirect $http, $current_virtual->{status}, $current_virtual->{location}, 'Redirect';
+            } else {
+              return error $http, $config, $docroot,
+                  $current_virtual->{status}, 'Error', undef;
+            }
+          } elsif ($current_virtual->{is_directory} and not defined $p) {
+            return redirect $http, 301, (percent_encode_c $segment) . '/', 'Directory';
+          } elsif (not defined $p) {
+            return error $http, $config, $docroot,
+                404, 'File not found', undef;
+          }
+
+          $p = $p->child ($segment);
+          $f = Promised::File->new_from_path ($p);
+          return $f->lstat->catch (sub { return undef })->then (sub {
+            my $stat = $_[0];
+            if (defined $stat and -l $stat) {
+              if ($current_virtual->{is_directory}) {
+                return redirect $http, 301, (percent_encode_c $segment) . '/', 'Directory';
+              } else {
+                return error $http, $config, $docroot,
+                    404, 'Bad path', $p;
+              }
+            } else {
               if (defined $stat and -f $stat) {
                 return send_file $http, $config, $p, $f, (file_name_to_metadata $config, $p->basename), 200;
-              } elsif (defined $stat and -d $stat) {
-                return redirect $http, 301, (percent_encode_c $segment) . '/';
+              } elsif ($current_virtual->{is_directory} or
+                       defined $stat and -d $stat) {
+                return redirect $http, 301, (percent_encode_c $segment) . '/', 'Directory';
               } else {
                 my $parent_path = $p->parent;
                 return Promise->new (sub {
@@ -720,14 +790,16 @@ sub psgi_app ($$) {
                   if (defined $_[0]) {
                     return send_file $http, $config, $_[0]->[0], $_[0]->[1], $_[0]->[2], 200;
                   } else {
-                    return not_found $http, $config, $docroot, 'File not found', $p;
+                    return error $http, $config, $docroot,
+                        404, 'File not found', $p;
                   }
                 });
               }
             }
           });
         } else {
-          return not_found $http, $config, $docroot, 'Bad path', $p;
+          return error $http, $config, $docroot,
+              404, 'Bad path', $p;
         }
       }; # $add_path
 
