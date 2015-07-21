@@ -159,6 +159,53 @@ test {
   });
 } n => 16 * 1, name => 'AddDefaultCharset';
 
+test {
+  my $c = shift;
+  server ({
+    'README' => q{aa},
+    'README.html' => q{bb},
+    'LICENSE' => q{b},
+    'foo/.htaccess' => q{
+      ReadmeName bar
+    },
+    'foo/README' => q{aa},
+    'foo/bar' => q{bb},
+    'abc/.htaccess' => q{
+      IndexOptions +charset=ISO-8859-8
+    },
+    'abc/README' => q{aa},
+    'abc/README.html' => q{aa},
+    'abc/def/README.html' => q{aa},
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</README>, 'text/plain; charset=utf-8'],
+      [q</LICENSE>, 'text/plain; charset=utf-8'],
+      [q</README.html>, 'text/html; charset=utf-8'],
+      [q</foo/README>, undef],
+      [q</foo/bar>, 'text/plain; charset=utf-8'],
+      [q</abc/README>, 'text/plain; charset=iso-8859-8'],
+      [q</abc/README.html>, 'text/html; charset=iso-8859-8'],
+      [q</abc/def/README>, 'text/html; charset=iso-8859-8'],
+      [q</abc/def/README.html>, 'text/html; charset=iso-8859-8'],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          is $res->header ('Content-Type'), $x->[1];
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 9 * 2, name => 'README and LICENSE';
+
 run_tests;
 
 =head1 LICENSE

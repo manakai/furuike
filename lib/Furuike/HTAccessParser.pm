@@ -48,6 +48,8 @@ sub parse_char_string ($$) {
   return delete $self->{data};
 } # parse_char_string
 
+$DirectiveParsers->{HeaderName} =
+$DirectiveParsers->{ReadmeName} =
 $DirectiveParsers->{AddDefaultCharset} = sub {
   my ($self, $name, $args) = @_;
   if ($args =~ m{^\s*(\S+)\s*$}) {
@@ -66,8 +68,8 @@ $DirectiveParsers->{IndexStyleSheet} = sub {
   }
 }; # IndexStyleSheet
 
-$DirectiveParsers->{DirectoryIndex} =
-$DirectiveParsers->{ReadmeName} = sub {
+$DirectiveParsers->{IndexIgnore} =
+$DirectiveParsers->{DirectoryIndex} = sub {
   my ($self, $name, $args) = @_;
   if ($args =~ m{^\s*\S+(?:\s+\S+)*\s*$}) {
     push @{$self->{data}->{$name} ||= []}, {values => [grep { length } split /\s+/, $args]};
@@ -79,9 +81,10 @@ $DirectiveParsers->{ReadmeName} = sub {
 $DirectiveParsers->{AddType} =
 $DirectiveParsers->{AddEncoding} =
 $DirectiveParsers->{AddLanguage} =
+$DirectiveParsers->{AddHandler} =
 $DirectiveParsers->{AddCharset} = sub {
   my ($self, $name, $args) = @_;
-  if ($args =~ m{^\s*([A-Za-z0-9_.+:/-]+)\s+(\S+(?:\s+\S+)*)\s*$}) {
+  if ($args =~ m{^\s*([A-Za-z0-9_.,+:/-]+)\s+(\S+(?:\s+\S+)*)\s*$}) {
     my $type = $1;
     my $exts = [grep { length } map { s/^\.//; $_ } split /\s+/, $2];
     push @{$self->{data}->{$name} ||= []}, {type => $type, exts => $exts};
@@ -101,15 +104,18 @@ $DirectiveParsers->{ErrorDocument} = sub {
 
 $DirectiveParsers->{Redirect} = sub {
   my ($self, $name, $args) = @_;
-  if ($args =~ m{^\s*(30[12378])\s+(\S+)\s+(\S+)\s*$}) {
+  if ($args =~ m{^\s*(30[12378])\s+(/\S*)\s+(\S+)\s*$}) {
     push @{$self->{data}->{$name} ||= []}, {status => $1, from => $2, to => $3};
-  } elsif ($args =~ m{^\s*([45][0-9][0-9]|gone)\s+(\S+)\s*$}) {
+  } elsif ($args =~ m{^\s*([45][0-9][0-9]|gone)\s+(/\S*)\s*$}) {
     push @{$self->{data}->{$name} ||= []}, {status => $1 eq 'gone' ? 410 : $1, from => $2};
+  } elsif ($args =~ m{^\s*(/\S*)\s+(\S+)\s*$}) {
+    push @{$self->{data}->{$name} ||= []}, {status => 302, from => $1, to => $2};
   } else {
     $self->onerror->(level => 'm', type => 'htaccess:Redirect:syntax error', value => $args);
   }
 }; # Redirect
 
+$DirectiveParsers->{Options} =
 $DirectiveParsers->{IndexOptions} = sub {
   my ($self, $name, $args) = @_;
   for (grep { length } split /\s+/, $args) {

@@ -49,8 +49,9 @@ segment in use.
 
 The directory index view for the directory is a simple HTML document
 representing the list of the files and the directories in the
-directory.  The document can be customized by C<IndexStyleSheet> and
-C<IndexOptions> directives.
+directory.  The document can be customized by C<IndexStyleSheet>,
+C<IndexOptions>, and C<ReadmeName> directives, as well as the
+C<LICENSE> file (see C<ReadmeName>'s description).
 
 If the final path segment is not the empty string and identifies a
 directory (e.g. C</path/to/directory>), a 301 response redirecting to
@@ -107,6 +108,10 @@ The set of mapping rules can be configured by the C<AddType>
 directive.  If no applicable mapping is found, no C<Content-Type:>
 header is set.
 
+As a special rule, if the base name is equal to the name specified in
+the C<ReadmeName> directive or the base name is C<LICENSE> and there
+is no other applicable rule, the MIME type is set to C<text/plain>.
+
 If the MIME type extension is omitted from the URL and there are
 multiple candidate files, a file is selected using the following
 priority list (C<text/html> is the most preferred format):
@@ -142,6 +147,11 @@ directive.
 
 The default for the default encoding label is C<utf-8>.  This default
 can be configured by the C<AddDefaultCharset> directive.
+
+As an exception, if the base name of the file is equal to the name
+specified in the C<ReadmeName> directive, the encoding label specified
+by the C<charset> option of the C<IndexOptions> directive, if any, is
+used as the default encoding label.
 
 If the MIME type extension is omitted from the URL and there are
 multiple candidate files, utf-8 is preferred to other encodings.
@@ -311,8 +321,36 @@ option.  Otherwise, the empty string is set to the option.
 The option name can be one of following values:
 
   NameWidth DescriptionWidth TrackModified HTMLTable IconsAreLinks
+  charset
 
-These options have no effect.  Use of them are DEPRECATED.
+The C<charset> option specifies the default encoding label for the
+directory readme file (see C<ReadmeName> and the section on MIME
+types).  The value must be a valid encoding label.  This option is
+DEPRECATED.  Use UTF-8 everywhere.
+
+The other options have no effect.  Use of them are DEPRECATED.
+
+=item ReadmeName SEGMENT
+
+Specify the readme file name for the directory.  The argument must be
+a valid non-empty path segment as described in earlier section.
+
+The default value of this directive is C<README>.
+
+If there is a file whose name is exactly equal to the specified
+segment, it is used as the directory readme file.  Otherwise, if there
+are files whose base name is equal to the specified segment, whose
+MIME type is either C<text/plain> or C<text/html>, and has no
+content-coding extension, one of such files is chosen by normal file
+selection rule and used as the directory readme file.
+
+Note that there can be the directory license file, whose file name or
+base name is C<LICENSE>, in the directory, though the base name cannot
+be configured by any directive and the MIME type of the file is
+limited to C<text/plain>.
+
+If there is the directory readme file or the directory license file,
+they are included at the end of the directory index view.
 
 =back
 

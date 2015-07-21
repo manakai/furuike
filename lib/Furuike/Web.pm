@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Wanage::HTTP;
 use Wanage::URL;
+use Encode;
 use AnyEvent::IO;
 use Promise;
 use Promised::File;
@@ -33,13 +34,13 @@ sub access_log ($$$;$) {
   print STDERR "\n";
 } # access_log
 
-sub not_found ($$) {
-  my ($http, $reason) = @_;
+sub not_found ($$$) {
+  my ($http, $reason, $path) = @_;
   $http->set_status (404);
   $http->set_response_header ('Content-Type' => 'text/plain; charset=utf-8');
   $http->send_response_body_as_ref (\"404 $reason");
   $http->close_response_body;
-  access_log $http, 404, $reason;
+  access_log $http, 404, $reason, $path;
 } # not_found
 
 sub redirect ($$$) {
@@ -155,112 +156,19 @@ sub file_name_to_metadata ($$) {
   }
 
   $file->{base_name} = join '.', $file->{base_name}, @suffix;
+
+  if (not defined $file->{type}) {
+    if ($file->{base_name} eq $config->{readme_name} or
+        $file->{base_name} eq $config->{license_name}) {
+      $file->{type} = 'text/plain';
+    }
+  }
+
   return $file;
 } # file_name_to_metadata
 
-sub send_file ($$$$$) {
-  my ($http, $config, $path, $file, $meta) = @_;
-  # XXX if large file
-  return $file->stat->then (sub {
-    my $mtime = $_[0]->[9];
-    return $file->read_byte_string->then (sub {
-      $http->set_status (200);
-      $http->set_response_last_modified ($mtime);
-      my $type = $meta->{type};
-      if (defined $type) {
-        my $charset = $meta->{charset};
-        if (not defined $charset) {
-          my $charset_type = $CharsetTypeByMIMEType->{$type} // '';
-          if ($charset_type eq 'default') {
-            $charset = $config->{default_charset};
-          } elsif ($charset_type eq 'utf-8') {
-            $charset = 'utf-8';
-          } elsif ($type =~ m{\+xml\z}) {
-            $charset = $config->{default_charset};
-          } elsif ($type =~ m{\+json\z}) {
-            $charset = 'utf-8';
-          }
-        }
-        if (defined $charset) {
-          $http->set_response_header ('Content-Type' => "$type; charset=$charset");
-        } else {
-          $http->set_response_header ('Content-Type' => $type);
-        }
-      }
-      $http->set_response_header ('Content-Language' => $meta->{lang})
-          if defined $meta->{lang};
-      $http->set_response_header ('Content-Encoding' => $meta->{encoding})
-          if defined $meta->{encoding};
-      $http->send_response_body_as_ref (\($_[0]));
-      $http->close_response_body;
-      access_log $http, 200, 'File', $path;
-    });
-  });
-} # send_file
-
-sub send_directory ($$$$$) {
-  my ($http, $config, $path_segments, $path, $file) = @_;
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    aio_readdir $path, sub {
-      my ($names) = @_ or return $ng->($!);
-      return $ok->($names);
-    };
-  })->then (sub {
-    my $names = $_[0];
-    return $file->stat->then (sub {
-      my $mtime = $_[0]->[9];
-      $http->set_status (200);
-      $http->set_response_last_modified ($mtime);
-      $http->set_response_header ('Content-Type' => 'text/html; charset=utf-8');
-      my $dir_name = $path->basename;
-      my $x = '';
-      my $n = @$path_segments - 3;
-      my $t = q{<!DOCTYPE HTML>};
-      $t .= sprintf q{<link rel=stylesheet href="%s">},
-          htescape $config->{index_style_sheet}
-          if defined $config->{index_style_sheet};
-      $t .= sprintf q{
-        <title>%s</title><h1><a href=/ rel=top><code>%s</code></a>%s</h1>
-        <ul>
-          %s
-        </ul>
-      },
-          htescape (join '/', @$path_segments),
-          htescape ($http->url->{host}.':'.$http->url->{port}),
-          (join '/', map {
-            $x .= percent_encode_c ($_) . '/';
-            if (length $_) {
-              sprintf q{<a href="%s" rel="%s"><code>%s</code></a>},
-                  htescape $x,
-                  (join ' ', ('up') x $n--) || 'self',
-                  htescape $_;
-            } else {
-              '';
-            }
-          } @$path_segments),
-          (join '', map {
-            my $parsed = file_name_to_metadata $config, $_;
-            my @t = ('<li>');
-            my $name = $parsed->{base_name};
-            push @t, sprintf q{<a href="%s">%s</a>},
-                htescape $name, htescape $name;
-            for (@{$parsed->{suffixes}}) {
-              $name .= '.' . $_;
-              push @t, sprintf q{.<a href="%s">%s</a>},
-                  htescape $name, htescape $_;
-            }
-            join '', @t;
-          } sort { $a cmp $b } grep { /\A$Segment\z/o } @$names);
-      $http->send_response_body_as_text ($t);
-      $http->close_response_body;
-      access_log $http, 200, 'Directory', $path;
-    });
-  });
-} # send_directory
-
-sub conneg ($$$$$) {
-  my ($http, $config, $names, $dir_path, $specified_names) = @_;
+sub conneg ($$$$$$) {
+  my ($http, $config, $names, $dir_path, $specified_names, $filter) = @_;
   return undef unless @$specified_names;
   my $bns = {};
   {
@@ -270,7 +178,7 @@ sub conneg ($$$$$) {
     }
   }
   my $bn_pattern = join '|', map { quotemeta $_ } @$specified_names;
-  my $files = [map {
+  my $files = [grep &$filter, map {
     if (/\A($bn_pattern)\./) {
       my $bn = $1;
       my $meta = file_name_to_metadata $config, $_;
@@ -317,9 +225,9 @@ sub conneg ($$$$$) {
       } else {
         return $select_file->();
       }
-      }, sub {
-        return $select_file->();
-      });
+    }, sub {
+      return $select_file->();
+    });
   }; # $select_file
 
   return Promise->resolve ($select_file->())->then (sub {
@@ -330,6 +238,175 @@ sub conneg ($$$$$) {
     die $_[0];
   });
 } # conneg
+
+sub send_file ($$$$$) {
+  my ($http, $config, $path, $file, $meta) = @_;
+  # XXX if large file
+  return $file->stat->then (sub {
+    my $mtime = $_[0]->[9];
+    return $file->read_byte_string->then (sub {
+      $http->set_status (200);
+      $http->set_response_last_modified ($mtime);
+      my $type = $meta->{type};
+      if (defined $type) {
+        my $charset = $meta->{charset};
+        if (not defined $charset) {
+          my $charset_type = $CharsetTypeByMIMEType->{$type} // '';
+          if ($charset_type eq 'default') {
+            if ($meta->{base_name} eq $config->{readme_name}) {
+              $charset = $config->{index_options}->{charset};
+            }
+            $charset //= $config->{default_charset};
+          } elsif ($charset_type eq 'utf-8') {
+            $charset = 'utf-8';
+          } elsif ($type =~ m{\+xml\z}) {
+            if ($meta->{base_name} eq $config->{readme_name}) {
+              $charset = $config->{index_options}->{charset};
+            }
+            $charset //= $config->{default_charset};
+          } elsif ($type =~ m{\+json\z}) {
+            $charset = 'utf-8';
+          }
+        }
+        if (defined $charset) {
+          $http->set_response_header ('Content-Type' => "$type; charset=$charset");
+        } else {
+          $http->set_response_header ('Content-Type' => $type);
+        }
+      }
+      $http->set_response_header ('Content-Language' => $meta->{lang})
+          if defined $meta->{lang};
+      $http->set_response_header ('Content-Encoding' => $meta->{encoding})
+          if defined $meta->{encoding};
+      $http->send_response_body_as_ref (\($_[0]));
+      $http->close_response_body;
+      access_log $http, 200, 'File', $path;
+    });
+  });
+} # send_file
+
+sub send_directory ($$$$$) {
+  my ($http, $config, $path_segments, $dir_path, $file) = @_;
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    aio_readdir $dir_path, sub {
+      my ($names) = @_ or return $ng->($!);
+      return $ok->($names);
+    };
+  })->then (sub {
+    my $names = $_[0];
+    my $has_license;
+    return $file->stat->then (sub {
+      my $mtime = $_[0]->[9];
+      $http->set_status (200);
+      $http->set_response_last_modified ($mtime);
+      $http->set_response_header ('Content-Type' => 'text/html; charset=utf-8');
+      my $has_readme;
+      my $dir_name = $dir_path->basename;
+      my $x = '';
+      my $n = @$path_segments - 3;
+      my $t = q{<!DOCTYPE HTML>};
+      $t .= sprintf q{<link rel=stylesheet href="%s">},
+          htescape $config->{index_style_sheet}
+          if defined $config->{index_style_sheet};
+      $t .= sprintf q{
+        <title>%s</title><h1><a href=/ rel=top><code>%s</code></a>%s</h1>
+        <ul>
+          %s
+        </ul>
+      },
+          htescape (join '/', @$path_segments),
+          htescape ($http->url->{host}.':'.$http->url->{port}),
+          (join '/', map {
+            $x .= percent_encode_c ($_) . '/';
+            if (length $_) {
+              sprintf q{<a href="%s" rel="%s"><code>%s</code></a>},
+                  htescape $x,
+                  (join ' ', ('up') x $n--) || 'self',
+                  htescape $_;
+            } else {
+              '';
+            }
+          } @$path_segments),
+          (join '', map {
+            $has_readme = 1 if $config->{readme_name} eq $_;
+            $has_license = 1 if $config->{license_name} eq $_;
+            my $parsed = file_name_to_metadata $config, $_;
+            my @t = ('<li>');
+            my $name = $parsed->{base_name};
+            push @t, sprintf q{<a href="%s">%s</a>},
+                htescape $name, htescape $name;
+            for (@{$parsed->{suffixes}}) {
+              $name .= '.' . $_;
+              push @t, sprintf q{.<a href="%s">%s</a>},
+                  htescape $name, htescape $_;
+            }
+            join '', @t;
+          } sort { $a cmp $b } grep { /\A$Segment\z/o } @$names);
+      $http->send_response_body_as_text ($t);
+
+      return [$dir_path,
+              Promised::File->new_from_path ($dir_path->child ($config->{readme_name})),
+              {type => 'text/plain'}] if $has_readme;
+      return conneg $http, $config, $names, $dir_path, [$config->{readme_name}], sub {
+        return 0 unless defined $_->{type};
+        return 0 unless $_->{type} eq 'text/html' or
+                        $_->{type} eq 'text/plain';
+        return 0 if defined $_->{encoding};
+        return 1;
+      };
+    })->then (sub {
+      return unless defined $_[0];
+      my ($path, $f, $meta) = @{$_[0]};
+      my $charset = $meta->{charset} // $config->{index_options}->{charset} // 'utf-8';
+      if ($charset eq 'utf-8') {
+        if ($meta->{type} eq 'text/html') {
+          return $f->read_char_string->then (sub {
+            $http->send_response_body_as_text ($_[0]);
+          });
+        } elsif ($meta->{type} eq 'text/plain') {
+          return $f->read_char_string->then (sub {
+            $http->send_response_body_as_text
+                (sprintf '<pre>%s</pre>', htescape $_[0]);
+          });
+        }
+      } else {
+        ## Note that $charset must be a valid encoding label
+        # XXX Use Web::Encoding
+        if ($meta->{type} eq 'text/html') {
+          return $f->read_byte_string->then (sub {
+            $http->send_response_body_as_text (decode $charset, $_[0]);
+          });
+        } elsif ($meta->{type} eq 'text/plain') {
+          return $f->read_byte_string->then (sub {
+            $http->send_response_body_as_text
+                (sprintf '<pre>%s</pre>', htescape decode $charset, $_[0]);
+          });
+        }
+      }
+    })->then (sub {
+      return [$dir_path,
+              Promised::File->new_from_path ($dir_path->child ($config->{license_name})),
+              {type => 'text/plain'}] if $has_license;
+      return conneg $http, $config, $names, $dir_path, [$config->{license_name}], sub {
+        return 0 unless defined $_->{type};
+        return 0 unless $_->{type} eq 'text/plain';
+        return 0 if defined $_->{encoding};
+        return 1;
+      };
+    })->then (sub {
+      return unless defined $_[0];
+      my ($path, $f, $meta) = @{$_[0]};
+      return $f->read_char_string->then (sub {
+        $http->send_response_body_as_text
+            (sprintf '<section id=LICENSE><h1 lang=en><a href=LICENSE rel=license>License</a></h1><pre>%s</pre></section>', htescape $_[0]);
+      });
+    })->then (sub {
+      $http->close_response_body;
+      access_log $http, 200, 'Directory', $dir_path;
+    });
+  });
+} # send_directory
 
 sub check_htaccess ($$) {
   my $config = $_[1];
@@ -387,16 +464,37 @@ sub check_htaccess ($$) {
                   unless $type =~ /\A[a-z0-9_.+:-]+\z/;
               $config->{default_charset} = $type;
             }
+          } elsif ($directive eq 'Options') {
+            for (@{$data->{$directive}}) {
+              my $type = $_->{name};
+              die "Bad Options - $type" unless {
+                MultiViews => 1,
+                ExecCGI => 1,
+              }->{$type};
+              if ($_->{'+'}) {
+                $config->{options}->{$type} = $_->{value} // '';
+              } elsif ($_->{'-'}) {
+                die "Bad directive - Options -$_->{name}=$_->{value}"
+                    if defined $_->{value};
+                delete $config->{options}->{$type};
+              } else {
+                $config->{options} = {};
+                $config->{options}->{$type} = $_->{value} // '';
+              }
+            }
           } elsif ($directive eq 'IndexOptions') {
             for (@{$data->{$directive}}) {
               my $type = $_->{name};
-              die "Bad IndexOption - $type" unless {
+              die "Bad IndexOptions - $type" unless {
                 NameWidth => 1,
                 DescriptionWidth => 1,
                 TrackModified => 1,
                 HTMLTable => 1,
                 IconsAreLinks => 1,
+                charset => 1,
               }->{$type};
+              $_->{value} =~ tr/A-Z/a-z/
+                  if $type eq 'charset' and defined $_->{value};
               if ($_->{'+'}) {
                 $config->{index_options}->{$type} = $_->{value} // '';
               } elsif ($_->{'-'}) {
@@ -419,8 +517,24 @@ sub check_htaccess ($$) {
             for (@{$data->{$directive}}) {
               $config->{index_style_sheet} = $_->{url};
             }
+          } elsif ($directive eq 'ReadmeName') {
+            for (@{$data->{$directive}}) {
+              die "Bad directive - ReadmeName $_->{value}"
+                  unless $_->{value} =~ /\A$Segment\z/o;
+              $config->{readme_name} = $_->{value};
+            }
+          } elsif ($directive eq 'HeaderName') {
+            for (@{$data->{$directive}}) {
+              for (@{$_->{values}}) {
+                die "Bad directive - ReadmeName $_->{value}"
+                    unless $_->{value} =~ /\A$Segment\z/o;
+              }
+              $config->{header_name} = $_->{value};
+            }
 
-            # XXX ReadmeName ErrorDocument Redirect
+            # XXX ErrorDocument Redirect IndexIgnore AddHandler
+
+            # XXX Options=ExecCGI HeaderName
 
           } else {
             # XXX
@@ -452,6 +566,9 @@ sub psgi_app ($$) {
         ext_to_charset => {%$ExtToCharset},
         ext_to_encoding => {%$ExtToEncoding},
         directory_index => ['index'],
+        header_name => undef,
+        readme_name => 'README',
+        license_name => 'LICENSE',
       };
 
       my $add_path; $add_path = sub {
@@ -467,7 +584,7 @@ sub psgi_app ($$) {
                   return $ok->($names);
                 };
               })->then (sub {
-                return conneg $http, $config, $_[0], $p, $config->{directory_index};
+                return conneg $http, $config, $_[0], $p, $config->{directory_index}, sub { 1 };
               })->then (sub {
                 if (defined $_[0]) {
                   return send_file $http, $config, $_[0]->[0], $_[0]->[1], $_[0]->[2];
@@ -476,10 +593,10 @@ sub psgi_app ($$) {
                 }
               });
             } else {
-              return not_found $http, 'Directory not found';
+              return not_found $http, 'Directory not found', $p;
             }
           }, sub {
-            return not_found $http, 'Directory not found';
+            return not_found $http, 'Directory not found', $p;
           });
         } elsif ($segment =~ /\A$Segment\z/o) {
           $p = $p->child ($segment);
@@ -487,14 +604,14 @@ sub psgi_app ($$) {
           return $f->lstat->catch (sub { return undef })->then (sub {
             my $stat = $_[0];
             if (defined $stat and -l $stat) {
-              return not_found $http, 'Bad path';
+              return not_found $http, 'Bad path', $p;
             } elsif (@path) { # non-last segment
               if (defined $stat and -d $stat) {
                 return check_htaccess ($p, $config)->then (sub {
                   return $add_path->(shift @path);
                 });
               } else {
-                return not_found $http, 'Directory not found';
+                return not_found $http, 'Directory not found', $p;
               }
             } else { # last segment
               if (defined $stat and -f $stat) {
@@ -510,19 +627,19 @@ sub psgi_app ($$) {
                     return $ok->($names);
                   };
                 })->then (sub {
-                  return conneg ($http, $config, $_[0], $parent_path, [$segment]);
+                  return conneg ($http, $config, $_[0], $parent_path, [$segment], sub { 1 });
                 })->then (sub {
                   if (defined $_[0]) {
                     return send_file $http, $config, $_[0]->[0], $_[0]->[1], $_[0]->[2];
                   } else {
-                    return not_found $http, 'File not found';
+                    return not_found $http, 'File not found', $p;
                   }
                 });
               }
             }
           });
         } else {
-          return not_found $http, 'Bad path';
+          return not_found $http, 'Bad path', $p;
         }
       }; # $add_path
 

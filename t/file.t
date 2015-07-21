@@ -210,6 +210,7 @@ test {
     'xyz' => {unreadable => 1, directory => 1},
     '.htaccess' => '#foo',
     'abbb/.htaccess' => '#foo',
+    '.git/foo' => 'a',
   })->then (sub {
     my $server = $_[0];
     my $p = Promise->resolve;
@@ -221,6 +222,9 @@ test {
       [q</xyz/abc>],
       [q</.htaccess>, 404],
       [q</abbb/.htaccess>, 404],
+      [q</.git>, 404],
+      [q</.git/>, 404],
+      [q</.git/foo>, 404],
     ) {
       $p = $p->then (sub {
         return GET ($server, $x->[0]);
@@ -240,7 +244,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 4 * 2 + 3 * 1, name => 'unreadable file';
+} n => 4 * 2 + 6 * 1, name => 'unreadable file';
 
 test {
   my $c = shift;

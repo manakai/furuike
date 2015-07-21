@@ -124,8 +124,10 @@ IndexOptions TrackModified -IconsAreLinks
 
 for my $x (
   [q{AddLanguage foo .foo}],
+  [q{Options hoge}],
   [q{IndexOptions hoge}],
   [q{IndexOptions -DescriptionWidth=12}],
+  [q{Options -ExecCGI=12}],
 ) {
   test {
     my $c = shift;
