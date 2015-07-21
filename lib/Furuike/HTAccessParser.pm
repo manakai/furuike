@@ -25,9 +25,9 @@ sub parse_char_string ($$) {
   for (split /\x0A/, $s) {
     if (/^\s*#/) {
       #
-    } elsif ($in_mod and m{^\s*</IfModule>\s*$}) {
-      $in_mod = 0;
-    } elsif ($in_mod) {
+    } elsif (defined $in_mod and m{^\s*</IfModule>\s*$}) {
+      $in_mod = undef;
+    } elsif (defined $in_mod and $in_mod eq 'Ignore') {
       #
     } elsif (/^\s*([A-Za-z0-9]+)\s+(.+)$/) {
       my $name = $1;
@@ -39,8 +39,13 @@ sub parse_char_string ($$) {
         $onerror->(level => 'm', type => 'htaccess:unknown directive', value => $name);
       }
     } elsif (m{^\s*<IfModule\s+([^<>]+)>\s*$}) {
-      $onerror->(level => 'w', type => 'htaccess:IfModule', value => $1);
-      $in_mod = 1;
+      $in_mod = $1;
+      if ($in_mod eq 'mod_headers.c' or $in_mod eq 'Furuike') {
+        #
+      } else {
+        $onerror->(level => 'w', type => 'htaccess:IfModule', value => $in_mod);
+        $in_mod = 'Ignore';
+      }
     } elsif (/\S/) {
       $onerror->(level => 'm', type => 'htaccess:broken line', value => $_);
     }

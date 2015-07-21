@@ -730,7 +730,7 @@ sub psgi_app ($$) {
                 not defined $current_virtual->{location}) {
               return error $http, $config, $docroot,
                   $current_virtual->{status}, 'Error', undef;
-            } else {
+            } elsif (not defined $p) {
               return error $http, $config, $docroot,
                   404, 'Directory not found', undef;
             }
