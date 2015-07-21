@@ -178,6 +178,286 @@ test {
   });
 } n => 2, name => 'IndexStyleSheet';
 
+test {
+  my $c = shift;
+  server ({
+    'README' => q{<p>aa'&},
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{\Q<pre>&lt;p&gt;aa'&amp;</pre>\E};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 2, name => 'default README';
+
+test {
+  my $c = shift;
+  server ({
+    'README' => q{<p>aa'&},
+    'LICENSE' => q{<X>aa'&},
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{\Q<pre>&lt;p&gt;aa'&amp;</pre>\E};
+          like $res->content, qr{\Q<pre>&lt;X&gt;aa'&amp;</pre>\E};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 3, name => 'default README and LICENSE';
+
+test {
+  my $c = shift;
+  server ({
+    'README' => 1,
+    'myREADME' => q{<p>aa'&},
+    'LICENSE' => q{<X>aa'&},
+    '.htaccess' => q{
+      ReadmeName myREADME
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{\Q<pre>&lt;p&gt;aa'&amp;</pre>\E};
+          like $res->content, qr{\Q<pre>&lt;X&gt;aa'&amp;</pre>\E};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 3, name => 'default README and LICENSE';
+
+test {
+  my $c = shift;
+  server ({
+    'myREADME.ja.txt' => qq{<p>aa'&\xE4\xB8\x80\x00},
+    'LICENSE.txt' => qq{<X>aa'&\xE4\xB8\x80\x00},
+    '.htaccess' => q{
+      ReadmeName myREADME
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{<pre>&lt;p&gt;aa'&amp;\xE4\xB8\x80\x00</pre>};
+          like $res->content, qr{<pre>&lt;X&gt;aa'&amp;\xE4\xB8\x80\x00</pre>};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 3, name => 'default README and LICENSE';
+
+test {
+  my $c = shift;
+  server ({
+    'myREADME.ja.html' => qq{<p>aa'&\xE4\xB8\x80\x00},
+    'LICENSE.html' => qq{<X>aa'&\xE4\xB8\x80\x00},
+    '.htaccess' => q{
+      ReadmeName myREADME
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{<p>aa'&\xE4\xB8\x80\x00};
+          unlike $res->content, qr{<X>aa'&\xE4\xB8\x80\x00};
+          unlike $res->content, qr{<pre>&lt;X&gt;aa'&amp;\xE4\xB8\x80\x00</pre>};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 4, name => 'README html';
+
+test {
+  my $c = shift;
+  server ({
+    'myREADME.ja.txt' => qq{<p>aa'&\xE4\xB8\x80\x00},
+    'LICENSE.txt' => qq{<X>aa'&\xE4\xB8\x80\x00},
+    '.htaccess' => q{
+      AddDefaultCharset ISO-2022-JP
+      ReadmeName myREADME
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{<pre>&lt;p&gt;aa'&amp;\xE4\xB8\x80\x00</pre>};
+          like $res->content, qr{<pre>&lt;X&gt;aa'&amp;\xE4\xB8\x80\x00</pre>};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 3, name => 'default README and LICENSE - AddDefaultCharset ignored';
+
+test {
+  my $c = shift;
+  server ({
+    'myREADME.ja.html' => qq{<p>aa'&\xE4\xB8\x80\x00},
+    'LICENSE.html' => qq{<X>aa'&\xE4\xB8\x80\x00},
+    '.htaccess' => q{
+      ReadmeName myREADME
+      AddDefaultCharset EUC-JP
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{<p>aa'&\xE4\xB8\x80\x00};
+          unlike $res->content, qr{<X>aa'&\xE4\xB8\x80\x00};
+          unlike $res->content, qr{<pre>&lt;X&gt;aa'&amp;\xE4\xB8\x80\x00</pre>};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 4, name => 'README html - AddDefaultCharset ignored';
+
+test {
+  my $c = shift;
+  server ({
+    'myREADME.ja.txt' => qq{<p>aa'&\x88\xEA\x00},
+    'LICENSE.txt' => qq{<X>aa'&\x88\xEA\x00},
+    '.htaccess' => q{
+      IndexOptions +charset=shift_jis
+      ReadmeName myREADME
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{<pre>&lt;p&gt;aa'&amp;\xE4\xB8\x80\x00</pre>};
+          unlike $res->content, qr{<pre>&lt;X&gt;aa'&amp;\xE4\xB8\x80\x00</pre>};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 3, name => 'default README and LICENSE - IndexOptions charset';
+
+test {
+  my $c = shift;
+  server ({
+    'myREADME.ja.html' => qq{<p>aa'&\x88\xEA\x00},
+    'LICENSE.html' => qq{<X>aa'&\x88\xEA\x00},
+    '.htaccess' => q{
+      ReadmeName myREADME
+      IndexOptions +charset=shift_JIS
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{<p>aa'&\xE4\xB8\x80\x00};
+          unlike $res->content, qr{<X>aa'&\xEF\xBF\xBD\x80\x00};
+          unlike $res->content, qr{<X>aa'&\xE4\xB8\x80\x00};
+          unlike $res->content, qr{<pre>&lt;X&gt;aa'&amp;\xE4\xB8\x80\x00</pre>};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 5, name => 'README html - IndexOptions charset';
+
 run_tests;
 
 =head1 LICENSE
