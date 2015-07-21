@@ -21,31 +21,32 @@ Anything under the document root directory is considered as part of
 the Web server.  No confidental data should be put within that
 directory.
 
-Any non-final path segment must match to the regular expression
-C<\A~?[A-Za-z0-9_-][A-Za-z0-9_.-]*\z>.  The final path segment must
-match to the regular expression or the empty string.  If there is an
-invalid path segment in the effective request URL, a 404 or 400
-response is returned.
+Any non-final percent-decoded path segment must match to the regular
+expression C<\A~?[A-Za-z0-9_-][A-Za-z0-9_.-]*\z>.  The final
+percent-decoded path segment must match to the regular expression or
+the empty string.  If there is an invalid path segment in the
+effective request URL, a 404 or 400 response is returned.
 
 The path component is interpreted as the path to the file or directory
-in the document root.  Any non-final path segment must identify a
-directory.  The final path segment must identify a file or directory.
-If the final path segment is the empty string, it must identify a
-directory.  Some file name extensions can be omitted, as described
-later.  No symbolic link is followed.  If the specified file or
-directory is not found or not of intended type, a 404 response is
-returned.
+in the document root.  Any non-final percent-decoded path segment must
+identify a directory.  The final path percent-decoded segment must
+identify a file or directory.  If the final percent-decoded path
+segment is the empty string, it must identify a directory.  Some file
+name extensions can be omitted, as described later.  No symbolic link
+is followed.  If the specified file or directory is not found or not
+of intended type, a 404 response is returned.
 
-If the final path segment is the empty string and identifies a
-directory (e.g. C</path/to/directory/>), the content of a directory
-index file, if any, or the directory index view for the directory.
+If the final percent-decoded path segment is the empty string and
+identifies a directory (e.g. C</path/to/directory/>), the content of a
+directory index file, if any, or the directory index view for the
+directory.
 
 A directory index file is a file that would be selected if the last
-path segment were C<index> (e.g. C</path/to/directory/index>).  As the
-file name extensions can be omitted, the file name might be
-C<index.ja.html>, C<index.svg.gz>, or C<index.txt>.  The
-C<DirectoryIndex> directive can be used to specify another last path
-segment in use.
+percent-decoded path segment were C<index>
+(e.g. C</path/to/directory/index>).  As the file name extensions can
+be omitted, the file name might be C<index.ja.html>, C<index.svg.gz>,
+or C<index.txt>.  The C<DirectoryIndex> directive can be used to
+specify another last percent-decoded path segment in use.
 
 The directory index view for the directory is a simple HTML document
 representing the list of the files and the directories in the
@@ -53,13 +54,14 @@ directory.  The document can be customized by C<IndexStyleSheet>,
 C<IndexOptions>, and C<ReadmeName> directives, as well as the
 C<LICENSE> file (see C<ReadmeName>'s description).
 
-If the final path segment is not the empty string and identifies a
-directory (e.g. C</path/to/directory>), a 301 response redirecting to
-the path with a trailing C</> character (e.g. C</path/to/directory/>)
-is returned.
+If the final percent-decoded path segment is not the empty string and
+identifies a directory (e.g. C</path/to/directory>), a 301 response
+redirecting to the path with a trailing C</> character
+(e.g. C</path/to/directory/>) is returned.
 
-If the final path segment is not the empty string and identifies a
-file (e.g. C</path/to/file>), the content of the file is returned.
+If the final percent-decoded path segment is not the empty string and
+identifies a file (e.g. C</path/to/file>), the content of the file is
+returned.
 
 If the file name consists of the following subcomponents in order, all
 or some of the extensions with the preceding C<.> character can be
@@ -85,9 +87,9 @@ selected is unknown.
 
 The MIME type of a file response (i.e. the C<Content-Type:> header
 value) is determined by the MIME type extension in the file name of
-the response (not the last path segment itself, in case some file name
-extensions are omitted in the URL), if any.  There are following
-built-in extension-to-MIME-type mapping rules:
+the response (not the last percent-decoded path segment itself, in
+case some file name extensions are omitted in the URL), if any.  There
+are following built-in extension-to-MIME-type mapping rules:
 
   html  text/html
   txt   text/plain
@@ -159,13 +161,13 @@ multiple candidate files, utf-8 is preferred to other encodings.
 =head1 LANGUAGES
 
 The C<Content-Language:> header value is determined by the language
-extension in the file name of the response (not the last path segment
-itself, in case some file name extensions are omitted in the URL), if
-any.  The language file name extension is two ASCII lowercase letters,
-optionally followed by C<-> followed by two ASCII letters
-(i.e. C<[a-z]{2}(?:-[a-zA-Z]{2}|)>).  (More complex language tags are
-not supported due to lack of use cases.  Please let me know if this is
-not enough.)
+extension in the file name of the response (not the last
+percent-decoded path segment itself, in case some file name extensions
+are omitted in the URL), if any.  The language file name extension is
+two ASCII lowercase letters, optionally followed by C<-> followed by
+two ASCII letters (i.e. C<[a-z]{2}(?:-[a-zA-Z]{2}|)>).  (More complex
+language tags are not supported due to lack of use cases.  Please let
+me know if this is not enough.)
 
 If no language extension is found, no C<Content-Language:> header is
 set.
@@ -179,9 +181,9 @@ C<Accept-Language:> header in the HTTP request, if any (i.e. this is a
 
 The C<Content-Encoding:> header value is determined by the
 content-coding extension in the file name of the response (not the
-last path segment itself, in case some file name extensions are
-omitted in the URL), if any.  There is following built-in
-extension-to-content-coding mapping rule:
+last percent-decoded path segment itself, in case some file name
+extensions are omitted in the URL), if any.  There is following
+built-in extension-to-content-coding mapping rule:
 
   gz    gzip
 
@@ -280,10 +282,10 @@ This directive is DEPRECATED.  You should always use UTF-8.
 
 =item DirectoryIndex SEGMENT1 SEGMENT2 ...
 
-Specify the last path segments for the directory index.  There can be
-one or more arguments, which must be valid non-empty path segments, as
-described in earlier section.  The order of the arguments is
-interpreted as preference.
+Specify the last percent-decoded path segments for the directory
+index.  There can be one or more arguments, which must be valid
+non-empty percent-decoded path segments, as described in earlier
+section.  The order of the arguments is interpreted as preference.
 
 For example,
 
@@ -333,7 +335,8 @@ The other options have no effect.  Use of them are DEPRECATED.
 =item ReadmeName SEGMENT
 
 Specify the readme file name for the directory.  The argument must be
-a valid non-empty path segment as described in earlier section.
+a valid non-empty percent-decoded path segment as described in earlier
+section.
 
 The default value of this directive is C<README>.
 
@@ -351,6 +354,24 @@ limited to C<text/plain>.
 
 If there is the directory readme file or the directory license file,
 they are included at the end of the directory index view.
+
+=item ErrorDocument 404 /PATH/SEGMENTS
+
+Specify the file used as the C<404> response.  The first argument must
+be C<404>.  The second argument must be a sequence of one or more
+non-empty percent-decoded path segments prefixed by C</>.  It is
+interpreted as the path to the file from the document root.
+
+If there is a file whose name is exactly equal to the specified path,
+it is used as response file.  Otherwise, if there are files whose base
+name is equal to the specified path, whose MIME type is either
+C<text/plain> or C<text/html>, and has no content-coding extension,
+one of such files is chosen by normal file selection rule and used as
+the directory readme file.
+
+Note that only the built-in rules and the C<.htaccess> file in the
+document root directory, if any, are applied to the error document
+file.
 
 =back
 

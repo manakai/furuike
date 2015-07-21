@@ -96,7 +96,7 @@ $DirectiveParsers->{AddCharset} = sub {
 $DirectiveParsers->{ErrorDocument} = sub {
   my ($self, $name, $args) = @_;
   if ($args =~ m{^\s*([45][0-9][0-9])\s+(\S+)\s*$}) {
-    push @{$self->{data}->{$name} ||= []}, {status => $1, url => $2};
+    push @{$self->{data}->{$name} ||= []}, {status => $1, path => $2};
   } else {
     $self->onerror->(level => 'm', type => 'htaccess:ErrorDocument:syntax error', value => $args);
   }
