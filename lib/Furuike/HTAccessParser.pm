@@ -104,15 +104,21 @@ $DirectiveParsers->{ErrorDocument} = sub {
 
 $DirectiveParsers->{Redirect} = sub {
   my ($self, $name, $args) = @_;
-  if ($args =~ m{^\s*(30[12378])\s+(/\S*)\s+(\S+)\s*$}) {
+  if ($args =~ m{^\s*(30[12378]|permanent|temp|seeother)\s+(/\S+)\s+(\S+)\s*$}) {
     push @{$self->{data}->{$name} ||= []}, {status => $1, from => $2, to => $3};
-  } elsif ($args =~ m{^\s*([45][0-9][0-9]|gone)\s+(/\S*)\s*$}) {
-    push @{$self->{data}->{$name} ||= []}, {status => $1 eq 'gone' ? 410 : $1, from => $2};
-  } elsif ($args =~ m{^\s*(/\S*)\s+(\S+)\s*$}) {
+  } elsif ($args =~ m{^\s*([45][0-9][0-9]|gone)\s+(/\S+)\s*$}) {
+    push @{$self->{data}->{$name} ||= []}, {status => $1, from => $2};
+  } elsif ($args =~ m{^\s*(/\S+)\s+(\S+)\s*$}) {
     push @{$self->{data}->{$name} ||= []}, {status => 302, from => $1, to => $2};
   } else {
     $self->onerror->(level => 'm', type => 'htaccess:Redirect:syntax error', value => $args);
   }
+  $self->{data}->{$name}->[-1]->{status} = {
+    gone => 410,
+    permanent => 301,
+    temp => 302,
+    seeother => 303,
+  }->{$self->{data}->{$name}->[-1]->{status}} || $self->{data}->{$name}->[-1]->{status};
 }; # Redirect
 
 $DirectiveParsers->{Options} =

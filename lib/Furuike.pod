@@ -10,9 +10,10 @@ file system.
 =head1 URL-TO-FILE MAPPING
 
 The path component of the effective request URL is mapped to a file or
-a directory, using the rules described in this section.  The scheme,
-authority, and query components of the effective request URL are
-ignored.
+a directory, using the rules described in this section (or processed
+according to the C<Redirect> directives, as described in the later
+section).  The scheme, authority, and query components of the
+effective request URL are ignored.
 
 The server script must be executed with the C<FURUIKE_DOCUMENT_ROOT>
 environment variable, whose value is the path to the "document root"
@@ -229,6 +230,9 @@ more arguments, as described in later subsection.
 
 Any other line is considered as a parse error.
 
+The C<.htaccess> file is processed in order.  If there are conflicting
+directives, the later directive takes precedence.
+
 If one of an applicable C<.htaccess> file has a parse error, any
 request to the files in the directory or the directory itself results
 in a C<500> response.
@@ -372,6 +376,36 @@ the directory readme file.
 Note that only the built-in rules and the C<.htaccess> file in the
 document root directory, if any, are applied to the error document
 file.
+
+=item Redirect STATUS /PATH/SEGMENTS URL
+
+Specify that the path should return a redirect to the URL.
+
+The first argument is the status code.  It must be either C<301> or
+C<permanent>, C<302> or C<temp>, C<303> or C<seeother>, C<307>, or
+C<308>.  The first argument can be omitted if its value is C<302>.
+
+The second argument must be a sequence of one or more non-empty
+percent-decoded path segments prefixed by C</>.
+
+The third argument must be a URL, absolute or relative.  It is used as
+the C<Location:> header value.
+
+If there are conflicting file or directory and C<Redirect> directive,
+the C<Redirect> directive takes precedence.
+
+=item Redirect STATUS /PATH/SEGMENTS
+
+Specify that the path should return an error response.
+
+The first argument is the status code.  It must be either a C<4xx>, a
+C<5xx>, or C<gone> (= C<410>).
+
+The second argument must be a sequence of one or more non-empty
+percent-decoded path segments prefixed by C</>.
+
+If there are conflicting file or directory and C<Redirect> directive,
+the C<Redirect> directive takes precedence.
 
 =back
 
