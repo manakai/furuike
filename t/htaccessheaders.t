@@ -207,6 +207,63 @@ test {
   });
 } n => 9 * 3, name => 'README and LICENSE';
 
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      Header add X-Test ""
+      Header add X-Test2 "fo\"bar\"o\\\\"
+      <Files o>
+        Header add X-Test3 "aa"
+      </Files>
+      <Files "o">
+        Header add X-Test4 "bb"
+      </Files>
+      <Files ~ "^(abc|de)">
+        Header add X-Test4 "cc"
+      </Files>
+      <Files ~ "p">
+        Header add X-Test4 "dd"
+      </Files>
+    },
+    'hoge' => q{},
+    'foo/bar' => q{},
+    'o' => q{},
+    'abcfoo' => q{},
+    'de-aa' => q{},
+    'apa' => q{},
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>, '', 'fo"bar"o\\', undef, undef],
+      [q</aa>, undef, undef, undef, undef],
+      [q</foo>, undef, undef, undef, undef],
+      [q</foo/>, '', 'fo"bar"o\\', undef, undef],
+      [q</foo/bar>, '', 'fo"bar"o\\', undef, undef],
+      [q</o>, '', 'fo"bar"o\\', 'aa', 'bb'],
+      [q</abcfoo>, '', 'fo"bar"o\\', undef, 'cc'],
+      [q</de-aa>, '', 'fo"bar"o\\', undef, 'cc'],
+      [q</apa>, '', 'fo"bar"o\\', undef, 'dd'],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->header ('X-Test'), $x->[1];
+          is $res->header ('X-Test2'), $x->[2];
+          is $res->header ('X-Test3'), $x->[3];
+          is $res->header ('X-Test4'), $x->[4];
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 18 * 2, name => 'Header';
+
 run_tests;
 
 =head1 LICENSE
