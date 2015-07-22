@@ -513,6 +513,35 @@ test {
   });
 } n => 2, name => 'LICENSE directory';
 
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      AddDescription "hoge &<>" foo-bar.txt
+    },
+    'foo-bar.txt' => q{},
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{<span class=desc>hoge &amp;&lt;&gt;</span>};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 2, name => 'AddDescription';
+
 run_tests;
 
 =head1 LICENSE

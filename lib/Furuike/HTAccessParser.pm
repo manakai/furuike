@@ -193,6 +193,15 @@ $DirectiveParsers->{FuruikeRedirectTop} = sub {
   }
 }; # FuruikeRedirectTop
 
+$DirectiveParsers->{AddDescription} = sub {
+  my ($self, $name, $args) = @_;
+  if ($args =~ m{^\s*"([^"]*)"\s+(\S+)\s*$}) {
+    push @{$self->{data}}, {name => $name, file_name => $2, value => $1};
+  } else {
+    $self->onerror->(level => 'm', type => 'htaccess:AddDescription:syntax error', value => $args);
+  }
+}; # AddDescription
+
 1;
 
 =head1 LICENSE
