@@ -22,6 +22,7 @@ sub parse_char_string ($$) {
   $s =~ s/\x0D\x0A/\x0A/g;
   $s =~ s/\x0D/\x0A/g;
   my $in_mod;
+  my $in_files;
   for (split /\x0A/, $s) {
     if (/^\s*#/) {
       #
@@ -29,12 +30,16 @@ sub parse_char_string ($$) {
       $in_mod = undef;
     } elsif (defined $in_mod and $in_mod eq 'Ignore') {
       #
+    } elsif (defined $in_files and m{^\s*</Files>\s*$}) {
+      $in_files = undef;
     } elsif (/^\s*([A-Za-z0-9]+)\s+(.+)$/) {
       my $name = $1;
       my $args = $2;
       my $parser = $DirectiveParsers->{$name};
-      if ($parser) {
-        $parser->($self, $name, $args);
+      if ($parser and
+          (not defined $in_files or
+           {Header => 1, AddCharset => 1}->{$name})) {
+        $parser->($self, $name, $args, $in_files);
       } else {
         $onerror->(level => 'm', type => 'htaccess:unknown directive', value => $name);
       }
@@ -46,6 +51,16 @@ sub parse_char_string ($$) {
         $onerror->(level => 'w', type => 'htaccess:IfModule', value => $in_mod);
         $in_mod = 'Ignore';
       }
+    } elsif (defined $in_files) {
+      $onerror->(level => 'm', type => 'htaccess:broken line', value => $_);
+    } elsif (m{^\s*<Files\s+"([^"]+)">\s*$}) {
+      $in_files = [['=', $1]];
+    } elsif (m{^\s*<Files\s+([A-Za-z0-9_.-]+)>\s*$}) {
+      $in_files = [['=', $1]];
+    } elsif (m{^\s*<Files\s+~\s+"([A-Za-z0-9_.-]+)">\s*$}) {
+      $in_files = [['*', $1]];
+    } elsif (m{^\s*<Files\s+~\s+"\^\(([A-Za-z0-9_.-]+)\|([A-Za-z0-9_.-]+)\)">\s*$}) {
+      $in_files = [['^', $1], ['^', $2]];
     } elsif (/\S/) {
       $onerror->(level => 'm', type => 'htaccess:broken line', value => $_);
     }
@@ -88,11 +103,12 @@ $DirectiveParsers->{AddEncoding} =
 $DirectiveParsers->{AddLanguage} =
 $DirectiveParsers->{AddHandler} =
 $DirectiveParsers->{AddCharset} = sub {
-  my ($self, $name, $args) = @_;
+  my ($self, $name, $args, $in_files) = @_;
   if ($args =~ m{^\s*([A-Za-z0-9_.,+:/-]+)\s+(\S+(?:\s+\S+)*)\s*$}) {
     my $type = $1;
     my $exts = [grep { length } map { s/^\.//; $_ } split /\s+/, $2];
-    push @{$self->{data}}, {name => $name, type => $type, exts => $exts};
+    push @{$self->{data}}, {name => $name, type => $type, exts => $exts,
+                            files => $in_files};
   } else {
     $self->onerror->(level => 'm', type => 'htaccess:Add:syntax error', value => $args);
   }
@@ -126,6 +142,23 @@ $DirectiveParsers->{Redirect} = sub {
   }->{$self->{data}->[-1]->{status}} || $self->{data}->[-1]->{status};
 }; # Redirect
 
+$DirectiveParsers->{RedirectMatch} = sub {
+  my ($self, $name, $args) = @_;
+  if ($args =~ m{^\s*(30[12378]|permanent|temp|seeother)\s+(/[A-Za-z0-9_/-]+)/\.\*\s+(\S+)\s*$}) {
+    push @{$self->{data}}, {name => 'Redirect', status => $1, from => $2, to => $3, all_descendants => 1};
+  } elsif ($args =~ m{^\s*(30[12378]|permanent|temp|seeother)\s+(/[A-Za-z0-9_/-]+)\$\s+(\S+)\s*$}) {
+    push @{$self->{data}}, {name => 'Redirect', status => $1, from => $2, to => $3};
+  } else {
+    $self->onerror->(level => 'm', type => 'htaccess:RedirectMatch:syntax error', value => $args);
+  }
+  $self->{data}->[-1]->{status} = {
+    gone => 410,
+    permanent => 301,
+    temp => 302,
+    seeother => 303,
+  }->{$self->{data}->[-1]->{status}} || $self->{data}->[-1]->{status};
+}; # RedirectMatch
+
 $DirectiveParsers->{Options} =
 $DirectiveParsers->{IndexOptions} = sub {
   my ($self, $name, $args) = @_;
@@ -140,6 +173,16 @@ $DirectiveParsers->{IndexOptions} = sub {
     push @{$self->{data}}, $v;
   }
 }; # IndexOptions
+
+$DirectiveParsers->{Header} = sub {
+  my ($self, $name, $args, $files) = @_;
+  if ($args =~ m{^\s*add\s+([A-Za-z0-9-]+)\s+"((?:[\x20\x21\x23-\x5B\x5D-\x7E]|\\["\\])*)"\s*$}) {
+    push @{$self->{data}}, {name => $name, header_name => $1, header_value => $2, files => $files};
+    $self->{data}->[-1]->{header_value} =~ s/\\(["\\])/$1/ge;
+  } else {
+    $self->onerror->(level => 'm', type => 'htaccess:Header:syntax error', value => $args);
+  }
+}; # Header
 
 $DirectiveParsers->{FuruikeRedirectTop} = sub {
   my ($self, $name, $args) = @_;

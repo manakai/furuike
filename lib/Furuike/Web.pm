@@ -283,6 +283,27 @@ sub send_file ($$$$$$) {
       }
       $http->set_response_header ('Content-Encoding' => $meta->{encoding})
           if defined $meta->{encoding};
+
+      HEADER: for (@{$config->{headers} or []}) {
+        if (defined $_->[2]) {
+          CHK: {
+            for (@{$_->[2]}) {
+              if ($_->[0] eq '=') {
+                last CHK if $meta->{file_name} eq $_->[1];
+              } elsif ($_->[0] eq '^') {
+                last CHK if $meta->{file_name} =~ /^\Q$_->[1]\E/;
+              } elsif ($_->[0] eq '*') {
+                last CHK if $meta->{file_name} =~ /\Q$_->[1]\E/;
+              }
+            }
+            next HEADER;
+          }
+          $http->add_response_header ($_->[0], $_->[1]);
+        } else {
+          $http->add_response_header ($_->[0], $_->[1]);
+        }
+      }
+
       $http->send_response_body_as_ref (\($_[0]));
       $http->close_response_body;
       access_log $http, $status, 'File', $path;
@@ -307,6 +328,11 @@ sub send_directory ($$$$$) {
       $http->set_response_last_modified ($mtime);
       $http->set_response_header ('Content-Type' => 'text/html; charset=utf-8');
       $http->set_response_header ('X-Content-Type-Options' => 'nosniff');
+
+      for (@{$config->{headers} or []}) {
+        $http->add_response_header ($_->[0], $_->[1]) unless defined $_->[2];
+      }
+
       my $has_readme;
       my $dir_name = $dir_path->basename;
       my $x = '';
@@ -521,6 +547,7 @@ sub check_htaccess ($$) {
             $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
             $config->{ext_to_mime_type}->{$_} = $type for @{$directive->{exts}};
           } elsif ($directive->{name} eq 'AddCharset') {
+            # XXX files
             my $type = $directive->{type};
             $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
             $config->{ext_to_charset}->{$_} = $type for @{$directive->{exts}};
@@ -543,6 +570,10 @@ sub check_htaccess ($$) {
             die "Bad directive - AddDefaultCharset $type"
                 unless $type =~ /\A[a-z0-9_.+:-]+\z/;
             $config->{default_charset} = $type;
+          } elsif ($directive->{name} eq 'Header') {
+            push @{$config->{headers} ||= []},
+                [$directive->{header_name}, $directive->{header_value},
+                 $directive->{files}];
           } elsif ($directive->{name} eq 'Options') {
             my $type = $directive->{option_name};
             die "Bad Options - $type" unless {
@@ -625,12 +656,12 @@ sub check_htaccess ($$) {
               $current->{location} = $to;
             }
             $current->{status} = $directive->{status};
+            $current->{all} = 1 if $directive->{all_descendants};
           } elsif ($directive->{name} eq 'FuruikeRedirectTop') {
             $config->{redirect_top}->{$directive->{url}} = 1;
 
-
             # XXX IndexIgnore AddHandler
-
+            # XXX AddCharset in <Files>
             # XXX Options=ExecCGI HeaderName
 
           } else {
@@ -704,7 +735,9 @@ sub psgi_app ($$) {
           });
         } elsif (@path and $segment =~ /\A$Segment\z/o) { # non-last segment
           $current_virtual = $current_virtual->{children}->{$segment} ||= {};
-          if (not $current_virtual->{is_directory}) {
+          if ($current_virtual->{all} and defined $current_virtual->{location}) {
+            return redirect $http, $current_virtual->{status}, $current_virtual->{location}, 'Redirect';
+          } elsif (not $current_virtual->{is_directory}) {
             if (defined $current_virtual->{status} and
                 not defined $current_virtual->{location}) {
               return error $http, $config, $docroot,

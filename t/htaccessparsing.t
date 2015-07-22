@@ -128,6 +128,11 @@ for my $x (
   [q{IndexOptions hoge}],
   [q{IndexOptions -DescriptionWidth=12}],
   [q{Options -ExecCGI=12}],
+  [q{
+    <Files foo>
+      AddType text/plain hoge
+    </Files>
+  }],
 ) {
   test {
     my $c = shift;

@@ -226,6 +226,21 @@ I<fileName> is some opaque string, indicates that any following line
 should be ignored until C<< </IfModule> >> line is found B<unless>
 I<fileName> is C<Furuike> or C<mod_headers.c>.
 
+In an C<.htaccess> file, the directives between the C<< <Files
+expression> >> line and the C<< </Files> >> line are only applied to
+the response using the file whose name matches to the expression.
+Only C<Header> and C<AddCharset> directives and C<IfModule> lines can
+be specified between the lines.  The expression can be one of
+followings:
+
+  ...              File name is equal to |...|.
+  "..."            File name is equal to |...|.
+  ~ "..."          File name contains |...|.
+  ~ "^(...|...)"   File name starts with one of |...|s.
+
+... where C<...> is a string of one or more ASCII alphanumerics or
+C<->.
+
 In an C<.htaccess> file, a directive name can be followed by one or
 more arguments, as described in later subsection.
 
@@ -395,6 +410,24 @@ the C<Location:> header value.
 If there are conflicting file or directory and C<Redirect> directive,
 the C<Redirect> directive takes precedence.
 
+=item RedirectMatch STATUS /PATH/SEGMENTS$ URL
+
+Same as C<Redirect STATUS /PATH/SEGMENTS URL>.
+
+=item RedirectMatch STATUS /PATH/SEGMENTS/.* URL
+
+Same as C<Redirect STATUS /PATH/SEGMENTS URL> but the last path
+segment is C<.*>.  If a redirect is defined using this syntax, any
+path whose prefix is equal to the specified path segments are also
+redirected.
+
+For example,
+
+  RedirectMatch 301 /foo/.* http://example/
+
+... will make paths such as C</foo>, C</foo/>, C</foo/bar>, and
+C</foo/bar/baz> redirects to C<http://example/>.
+
 =item Redirect STATUS /PATH/SEGMENTS
 
 Specify that the path should return an error response.
@@ -421,6 +454,15 @@ For example,
   Redirect 302 /oldurl http://olddomain.example/newurl
 
 ... is interpreted as C<Redirect 302 /oldurl /newurl>.
+
+=item Header add HEADERNAME "HEADERVALUE"
+
+Specify that an HTTP header should be added to successful responses.
+The first argument must be C<add>.  The second argument must be an
+HTTP header name consist of ASCII alphanumerics and C<->.  The third
+argument must be a sequence of zero or more printable ASCII
+characters, quoted by C<">.  Any C<"> or C<\> character in the value
+must be preceded by a C<\> character.
 
 =back
 

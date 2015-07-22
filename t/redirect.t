@@ -313,6 +313,77 @@ test {
   });
 } n => 4 * 2, name => 'FuruikeRedirectTop';
 
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      RedirectMatch 301 /foo/.* http://hoge/
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</foo>, 301, q<http://hoge/>],
+      [q</foo/>, 301, q<http://hoge/>],
+      [q</foo/fuga>, 301, q<http://hoge/>],
+      [q</foo/fuga/bar>, 301, q<http://hoge/>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, $x->[1];
+          $x->[2] =~ s{^http://HOST}{'http://'.$server->get_host}e
+              if defined $x->[2];
+          is $res->header ('Location'), $x->[2];
+        } $c, name => [$x->[0], $x->[3]];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 4 * 2, name => 'RedirectMatch';
+
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      RedirectMatch 302 /foo/$ http://hoge/
+      RedirectMatch 303 /bar$ http://hoge/
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</foo>, 301, q<http://HOST/foo/>],
+      [q</foo/>, 302, q<http://hoge/>],
+      [q</foo/fuga>, 404, undef],
+      [q</foo/fuga/bar>, 404, undef],
+      [q</bar>, 303, q<http://hoge/>],
+      [q</bar/>, 404, undef],
+      [q</bar/fuga>, 404, undef],
+      [q</bar/fuga/bar>, 404, undef],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, $x->[1];
+          $x->[2] =~ s{^http://HOST}{'http://'.$server->get_host}e
+              if defined $x->[2];
+          is $res->header ('Location'), $x->[2];
+        } $c, name => [$x->[0], $x->[3]];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 8 * 2, name => 'RedirectMatch';
+
 run_tests;
 
 =head1 LICENSE
