@@ -96,6 +96,8 @@ test {
 abc
 </IfModule>
 AddLanguage ja .ja 
+AddLanguage ja .dat
+AddLanguage ja,en .en
 IndexOptions +NameWidth=41 +HTMLTable
 IndexOptions TrackModified -IconsAreLinks
     },
@@ -123,7 +125,6 @@ IndexOptions TrackModified -IconsAreLinks
 } n => 1 * 2, name => '.htaccess ignored';
 
 for my $x (
-  [q{AddLanguage foo .foo}],
   [q{Options hoge}],
   [q{IndexOptions hoge}],
   [q{IndexOptions -DescriptionWidth=12}],

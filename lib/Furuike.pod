@@ -125,6 +125,7 @@ priority list (C<text/html> is the most preferred format):
   image/jpeg
   image/vnd.microsoft.icon
   image/gif
+  application/pdf
   Any other type (or no type)
 
 For following MIME types, C<charset=utf-8> parameter is set:
@@ -138,8 +139,6 @@ the default encoding label, is used as the C<charset> parameter value:
   text/html text/css text/javascript text/xml application/xml */*+xml
   text/xml-external-parsed-entity application/xml-external-parsed-entity
   application/xml-dtd text/x-component text/perl
-  application/x-visual-basic-form application/x-visual-basic-form-resource
-  application/x-visual-basic-project application/x-visual-basic-window
 
 There are following built-in extension-to-encoding-label mapping
 rules:
@@ -275,6 +274,7 @@ Note that the following MIME types are replaced by more canonical
 ones:
 
   application/x-javascript  -> text/javascript
+  application/x-ms-jscript  -> text/javascript
   application/x-perl        -> text/perl
   text/pod                  -> text/perl
 
@@ -362,6 +362,13 @@ types).  The value must be a valid encoding label.  This option is
 DEPRECATED.  Use UTF-8 everywhere.
 
 The other options have no effect.  Use of them are DEPRECATED.
+
+=item AddDescription "STRING" FILENAME
+
+Associate a short description string for a file name, used in the
+directory index view.  The first argument must be a C<">-quoted
+description string.  The second argument must be a non-empty valid
+percent-decoded path segment.
 
 =item ReadmeName SEGMENT
 

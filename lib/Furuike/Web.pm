@@ -53,6 +53,7 @@ my $ExtToMIMEType = {
 
 my $MIMETypeMapping = {
   'application/x-javascript' => 'text/javascript',
+  'application/x-ms-jscript' => 'text/javascript',
   'application/x-perl' => 'text/perl',
   'text/pod' => 'text/perl',
 };
@@ -63,6 +64,7 @@ my $MIMETypeToPriority = {};
   $MIMETypeToPriority->{$_} = $i++ for reverse qw(
     text/html text/plain
     image/png image/jpeg image/vnd.microsoft.icon image/gif
+    application/pdf
   );
 }
 
@@ -83,10 +85,6 @@ my $CharsetTypeByMIMEType = {
   'application/xml-dtd' => 'default',
   'text/xml-external-parsed-entity' => 'default',
   'application/xml-external-parsed-entity' => 'default',
-  'application/x-visual-basic-form' => 'default',
-  'application/x-visual-basic-form-resource' => 'default',
-  'application/x-visual-basic-project' => 'default',
-  'application/x-visual-basic-window' => 'default',
   'text/cache-manifest' => 'utf-8',
   'application/json' => 'utf-8',
 };
@@ -390,6 +388,11 @@ sub send_directory ($$$$$) {
               push @t, sprintf q{.<a href="%s">%s</a>},
                   htescape $name, htescape $_;
             }
+            my $desc = $config->{index_descs}->{$parsed->{file_name}};
+            if (defined $desc) {
+              push @t, sprintf q{ - <span class=desc>%s</span>},
+                  htescape $desc;
+            }
             join '', @t;
           } sort { $a cmp $b } grep { /\A$Segment\z/o } @$names);
       $http->send_response_body_as_text ($t);
@@ -576,11 +579,13 @@ sub check_htaccess ($$) {
           } elsif ($directive->{name} eq 'AddLanguage') {
             my $type = $directive->{type};
             $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
-            die "Bad directive - AddLanguage $type"
-                unless $type =~ /\A[a-z][a-z](?:-[a-z][a-z]|)\z/;
-            for (@{$directive->{exts}}) {
-              die "Bad directive - AddLanguage $type $_"
-                  unless $type eq lc $_ and /^[a-z][a-z]/;
+            if ($type =~ /\A[a-z][a-z](?:-[a-z][a-z]|)\z/) {
+              for (@{$directive->{exts}}) {
+                warn "Bad directive - AddLanguage $type $_"
+                    unless $type eq lc $_ and /^[a-z][a-z]/;
+              }
+            } else {
+              warn "Bad directive - AddLanguage $type";
             }
           } elsif ($directive->{name} eq 'AddDefaultCharset') {
             my $type = $directive->{value};
@@ -638,6 +643,8 @@ sub check_htaccess ($$) {
             $config->{directory_index} = $directive->{values};
           } elsif ($directive->{name} eq 'IndexStyleSheet') {
             $config->{index_style_sheet} = $directive->{url};
+          } elsif ($directive->{name} eq 'AddDescription') {
+            $config->{index_descs}->{$directive->{file_name}} = $directive->{value};
           } elsif ($directive->{name} eq 'ReadmeName') {
             die "Bad directive - ReadmeName $directive->{value}"
                 unless $directive->{value} =~ /\A$Segment\z/o;
