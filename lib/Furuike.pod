@@ -136,6 +136,10 @@ encoding label extension in the file name of the response, if any, or
 the default encoding label, is used as the C<charset> parameter value:
 
   text/html text/css text/javascript text/xml application/xml */*+xml
+  text/xml-external-parsed-entity application/xml-external-parsed-entity
+  application/xml-dtd text/x-component text/perl
+  application/x-visual-basic-form application/x-visual-basic-form-resource
+  application/x-visual-basic-project application/x-visual-basic-window
 
 There are following built-in extension-to-encoding-label mapping
 rules:
@@ -266,6 +270,13 @@ argument must be an MIME type without parameter (ASCII
 case-insensitive).  The other arguments must be file name extensions
 (case-sensitive), optionally preceded by a C<.> character.  There must
 be two or more arguments.
+
+Note that the following MIME types are replaced by more canonical
+ones:
+
+  application/x-javascript  -> text/javascript
+  application/x-perl        -> text/perl
+  text/pod                  -> text/perl
 
 =item AddEncoding CODING .EXT1 .EXT2 ...
 
@@ -463,6 +474,20 @@ HTTP header name consist of ASCII alphanumerics and C<->.  The third
 argument must be a sequence of zero or more printable ASCII
 characters, quoted by C<">.  Any C<"> or C<\> character in the value
 must be preceded by a C<\> character.
+
+=item Options OPTION1 OPTION2 ...
+
+Same syntax with the C<IndexOptions> directive but has different set
+of allowed option names: C<ExecCGI>, C<MultiViews>, and C<Indexes>.
+This directive has no effect.  This directive is DEPRECATED.
+
+=item AddHandler cgi-script .EXT1 .EXT2 ...
+
+This directive has no effect.  This directive is DEPRECATED.
+
+=item IndexIgnore NAME1 NAME2 ...
+
+This directive has no effect.  This directive is DEPRECATED.
 
 =back
 

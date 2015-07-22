@@ -51,6 +51,12 @@ my $ExtToMIMEType = {
   'zip' => 'application/zip',
 };
 
+my $MIMETypeMapping = {
+  'application/x-javascript' => 'text/javascript',
+  'application/x-perl' => 'text/perl',
+  'text/pod' => 'text/perl',
+};
+
 my $MIMETypeToPriority = {};
 {
   my $i = 1;
@@ -71,7 +77,16 @@ my $CharsetTypeByMIMEType = {
   'text/css' => 'default',
   'text/javascript' => 'default',
   'text/xml' => 'default',
+  'text/x-component' => 'default',
+  'text/perl' => 'default',
   'application/xml' => 'default',
+  'application/xml-dtd' => 'default',
+  'text/xml-external-parsed-entity' => 'default',
+  'application/xml-external-parsed-entity' => 'default',
+  'application/x-visual-basic-form' => 'default',
+  'application/x-visual-basic-form-resource' => 'default',
+  'application/x-visual-basic-project' => 'default',
+  'application/x-visual-basic-window' => 'default',
   'text/cache-manifest' => 'utf-8',
   'application/json' => 'utf-8',
 };
@@ -118,9 +133,11 @@ sub file_name_to_metadata ($$) {
   }
 
   if (@suffix and my $type = $config->{ext_to_charset}->{$suffix[-1]}) {
-    unshift @{$file->{suffixes}}, $suffix[-1];
     $file->{charset} = $type;
-    pop @suffix;
+    unless ($config->{ext_to_mime_type}->{$suffix[-1]}) {
+      unshift @{$file->{suffixes}}, $suffix[-1];
+      pop @suffix;
+    }
   }
 
   if (@suffix and my $type = $config->{ext_to_mime_type}->{$suffix[-1]}) {
@@ -545,6 +562,7 @@ sub check_htaccess ($$) {
           if ($directive->{name} eq 'AddType') {
             my $type = $directive->{type};
             $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
+            $type = $MIMETypeMapping->{$type} // $type;
             $config->{ext_to_mime_type}->{$_} = $type for @{$directive->{exts}};
           } elsif ($directive->{name} eq 'AddCharset') {
             # XXX files
@@ -579,6 +597,7 @@ sub check_htaccess ($$) {
             die "Bad Options - $type" unless {
               MultiViews => 1,
               ExecCGI => 1,
+              Indexes => 1,
             }->{$type};
             if ($directive->{'+'}) {
               $config->{options}->{$type} = $directive->{option_value} // '';
@@ -659,10 +678,17 @@ sub check_htaccess ($$) {
             $current->{all} = 1 if $directive->{all_descendants};
           } elsif ($directive->{name} eq 'FuruikeRedirectTop') {
             $config->{redirect_top}->{$directive->{url}} = 1;
+          } elsif ($directive->{name} eq 'IndexIgnore') {
+            # ignored
+          } elsif ($directive->{name} eq 'AddHandler') {
+            if ($directive->{type} eq 'cgi-script') {
+              # ignored
+            } else {
+              die "Unknown handler |$directive->{type}|";
+            }
 
-            # XXX IndexIgnore AddHandler
             # XXX AddCharset in <Files>
-            # XXX Options=ExecCGI HeaderName
+            # XXX HeaderName
 
           } else {
             # XXX

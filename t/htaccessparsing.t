@@ -133,6 +133,8 @@ for my $x (
       AddType text/plain hoge
     </Files>
   }],
+  [q{AddHandler foo .foo}],
+  [q{Options foo}],
 ) {
   test {
     my $c = shift;
@@ -161,6 +163,49 @@ for my $x (
     });
   } n => 3 * 1, name => ['Bad .htaccess', $x->[0]];
 }
+
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      IndexIgnore *.tmp
+      AddHandler cgi-script .cgi
+      Options +ExecCGI
+      Options -MultiViews +Indexes
+    },
+    'foo' => q{aa},
+    'hoge/index.html' => q{<p>foo},
+    'aa.cgi' => q{abc},
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+      [q</foo>],
+      [q</hoge/>],
+      [q</hoge/index>],
+      [q</hoge/index.html>],
+      [q</aa.cgi> => q{abc}],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          if (defined $x->[1]) {
+            is $res->content, $x->[1];
+          } else {
+            ok 1;
+          }
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 2 * 6, name => 'no error';
 
 run_tests;
 

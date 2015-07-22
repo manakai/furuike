@@ -264,6 +264,48 @@ test {
   });
 } n => 18 * 2, name => 'Header';
 
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      AddType text/perl .pl
+      AddCharset euc-jp .pl
+      AddType text/pod .pod
+      AddCharset utf-8 .pod
+      AddType text/x-component .aaa
+    },
+    'foo.pl' => q{},
+    'bar.pl.u8' => q{},
+    'baz.pod' => q{},
+    'abc.pl.pl' => q{},
+    'abd.aaa.aaa' => q{},
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</foo.pl>, 'text/perl; charset=euc-jp', 200],
+      [q</bar.pl>, 'text/perl; charset=utf-8', 200],
+      [q</baz.pod>, 'text/perl; charset=utf-8', 200],
+      [q</abc.pl.pl>, 'text/perl; charset=euc-jp', 200],
+      [q</abd.aaa.aaa>, 'text/x-component; charset=utf-8', 200],
+      [q</abd>, 'text/plain; charset=utf-8', 404],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, $x->[2];
+          is $res->header ('Content-Type'), $x->[1];
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 6 * 2, name => 'type-charset extensions';
+
 run_tests;
 
 =head1 LICENSE

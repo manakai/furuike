@@ -166,7 +166,7 @@ $DirectiveParsers->{IndexOptions} = sub {
     my $v = {};
     $v->{$1} = 1 if s/^([+-])//;
     $v->{option_value} = $1 if s/=(.*)$//;
-    return $self->onerror->(level => 'm', type => 'htaccess:IndexOptions:syntax error', value => $_)
+    return $self->onerror->(level => 'm', type => 'htaccess:options:syntax error', value => $_)
         unless /\A[A-Za-z0-9]+\z/;
     $v->{option_name} = $_;
     $v->{name} = $name;
