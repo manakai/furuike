@@ -358,9 +358,6 @@ sub send_directory ($$$$$) {
           if defined $config->{index_style_sheet};
       $t .= sprintf q{
         <title>%s</title><h1><a href=/ rel=top><code>%s</code></a>%s</h1>
-        <ul>
-          %s
-        </ul>
       },
           htescape (join '/', @$path_segments),
           htescape ($http->url->{host}.':'.$http->url->{port}),
@@ -374,27 +371,54 @@ sub send_directory ($$$$$) {
             } else {
               '';
             }
-          } @$path_segments),
-          (join '', map {
-            $has_readme = 1 if $config->{readme_name} eq $_;
-            $has_license = 1 if $config->{license_name} eq $_;
-            my $parsed = file_name_to_metadata $config, $_;
-            my @t = ('<li>');
-            my $name = $parsed->{base_name};
-            push @t, sprintf q{<a href="%s">%s</a>},
-                htescape $name, htescape $name;
-            for (@{$parsed->{suffixes}}) {
-              $name .= '.' . $_;
-              push @t, sprintf q{.<a href="%s">%s</a>},
-                  htescape $name, htescape $_;
-            }
-            my $desc = $config->{index_descs}->{$parsed->{file_name}};
-            if (defined $desc) {
-              push @t, sprintf q{ - <span class=desc>%s</span>},
-                  htescape $desc;
-            }
-            join '', @t;
-          } sort { $a cmp $b } grep { /\A$Segment\z/o } @$names);
+          } @$path_segments);
+
+      my @image_file;
+      my @other_file;
+      for (sort { $a cmp $b } grep { /\A$Segment\z/o } @$names) {
+        $has_readme = 1 if $config->{readme_name} eq $_;
+        $has_license = 1 if $config->{license_name} eq $_;
+        my $parsed = file_name_to_metadata $config, $_;
+        my @t = ('<li>');
+        my $name = $parsed->{base_name};
+        my $is_image = defined $parsed->{type} && $parsed->{type} =~ /^image/;
+        if ($is_image) {
+          push @t, sprintf q{<a href="%s"><img src="%s" alt></a> },
+              htescape $parsed->{file_name},
+              htescape $parsed->{file_name};
+        }
+        push @t, q{<span class=name>};
+        push @t, sprintf q{<a href="%s">%s</a>},
+            htescape $name, htescape $name;
+        for (@{$parsed->{suffixes}}) {
+          $name .= '.' . $_;
+          push @t, sprintf q{.<a href="%s">%s</a>},
+              htescape $name, htescape $_;
+        }
+        push @t, q{</span>};
+        my $desc = $config->{index_descs}->{$parsed->{file_name}};
+        if (defined $desc) {
+          push @t, sprintf q{ <span class=desc>%s</span>},
+              htescape $desc;
+        }
+        if ($is_image) {
+          push @image_file, join '', @t;
+        } else {
+          push @other_file, join '', @t;
+        }
+      } # $names
+
+      if (@image_file) {
+        $t .= sprintf q{<section id=images><h1>Images</h1><ul>%s</ul></section>},
+            join '', @image_file;
+      }
+      if (@other_file) {
+        $t .= sprintf q{<section id=files><h1>Files</h1><ul>%s</ul></section>},
+            join '', @other_file;
+      }
+
+      $t .= '</html>';
+
       $http->send_response_body_as_text ($t);
 
       if ($has_readme) {
@@ -623,6 +647,7 @@ sub check_htaccess ($$) {
               HTMLTable => 1,
               IconsAreLinks => 1,
               charset => 1,
+              FancyIndexing => 1,
             }->{$type};
             $directive->{option_value} =~ tr/A-Z/a-z/
                 if $type eq 'charset' and defined $directive->{option_value};
@@ -714,15 +739,24 @@ sub psgi_app ($$) {
     my $http = Wanage::HTTP->new_from_psgi_env ($_[0]);
     return $http->send_response (onready => sub {
 
-      my $path = $http->url->{path};
-      my @p = my @path = map { percent_decode_c $_ } split m{/}, $path, -1;
-      shift @path if @path > 1;
-
       my $p = $docroot;
       my $f;
 
       my $config = new_config;
       my $current_virtual = $config->{virtual};
+
+      my $path = $http->url->{path};
+      if ($path =~ s{,([^/,]*)\z}{}) {
+        my $comma = percent_decode_c $1;
+        if ($comma eq 'imglist' or $comma eq 'imglist-detail') {
+          return redirect $http, 301, 'LIST', 'Directory';
+        }
+        return error $http, $config, $docroot,
+            404, 'Comma tool not found', undef;
+      }
+
+      my @p = my @path = map { percent_decode_c $_ } split m{/}, $path, -1;
+      shift @path if @path > 1;
 
       my $add_path; $add_path = sub {
         my $segment = $_[0];
@@ -810,6 +844,31 @@ sub psgi_app ($$) {
             }
           });
         } elsif (not @path and $segment =~ /\A$Segment\z/o) { # last segment
+          if ($segment eq 'LIST') {
+            if (defined $p) {
+              $f ||= Promised::File->new_from_path ($p);
+              return $f->lstat->then (sub {
+                if (not -l $_[0] and -d $_[0]) {
+                  return Promise->new (sub {
+                    my ($ok, $ng) = @_;
+                    aio_readdir $p, sub {
+                      my ($names) = @_ or return $ng->($!);
+                      return $ok->($names);
+                    };
+                  })->then (sub {
+                    return send_directory $http, $config, \@p, $p, $f;
+                  });
+                } else {
+                  return error $http, $config, $docroot,
+                      404, 'Directory not found', $p;
+                }
+              }, sub {
+                return error $http, $config, $docroot,
+                    404, 'Directory not found', $p;
+              });
+            }
+          }
+
           $current_virtual = $current_virtual->{children}->{$segment};
           if (defined $current_virtual->{status}) {
             if (defined $current_virtual->{location}) {

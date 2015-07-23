@@ -16,6 +16,8 @@ for my $path (
   q</foo.html>,
   q</favicon.ico>,
   q</foo%2Fbar>,
+  q</foo/LIST>,
+  q</foo/bar/LIST>,
 ) {
   test {
     my $c = shift;

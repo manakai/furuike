@@ -55,14 +55,18 @@ directory.  The document can be customized by C<IndexStyleSheet>,
 C<IndexOptions>, and C<ReadmeName> directives, as well as the
 C<LICENSE> file (see C<ReadmeName>'s description).
 
+If the final percent-decoded path segment is equal to C<LIST>, the
+directory index view for the directory identified by the second-last
+segment is returned.
+
 If the final percent-decoded path segment is not the empty string and
 identifies a directory (e.g. C</path/to/directory>), a 301 response
 redirecting to the path with a trailing C</> character
 (e.g. C</path/to/directory/>) is returned.
 
-If the final percent-decoded path segment is not the empty string and
-identifies a file (e.g. C</path/to/file>), the content of the file is
-returned.
+If the final percent-decoded path segment is not the empty string, not
+equal to C<LIST>, and identifies a file (e.g. C</path/to/file>), the
+content of the file is returned.
 
 If the file name consists of the following subcomponents in order, all
 or some of the extensions with the preceding C<.> character can be
@@ -83,6 +87,10 @@ factors (where MIME type is the most important factor):
 
 If there are still multiple files with same priority, how a file is
 selected is unknown.
+
+For backward compatibility, if the path ends by C<,imglist> or
+C<,imglist-detail>, a redirect to the C<LIST> in the same directory is
+returned.
 
 =head1 MIME TYPES
 
@@ -354,7 +362,7 @@ option.  Otherwise, the empty string is set to the option.
 The option name can be one of following values:
 
   NameWidth DescriptionWidth TrackModified HTMLTable IconsAreLinks
-  charset
+  FancyIndexing charset
 
 The C<charset> option specifies the default encoding label for the
 directory readme file (see C<ReadmeName> and the section on MIME
