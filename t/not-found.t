@@ -7,7 +7,8 @@ use Tests;
 for my $path (
   q</notfoind>,
   q</not/found>,
-  #q<//hoge>,
+  q<//hoge>,
+  q<///a>,
   q</!-$>,
   q</%%>,
   q</ho//>,
