@@ -12,6 +12,7 @@ test {
     for my $x (
       [q</>],
       [q</?ab>],
+      [q</LIST>],
     ) {
       $p = $p->then (sub {
         return GET ($server, $x->[0]);
@@ -23,15 +24,47 @@ test {
           is $res->header ('X-Content-Type-Options'), q{nosniff};
           like $res->header ('Last-Modified'), qr{GMT};
           unlike $res->header ('Last-Modified'), qr{ 1970 };
-          like $res->content, qr{</ul>};
-        } $c, name => $x->[1] // $x->[0];
+          like $res->content, qr{</html>};
+        } $c, name => $x->[0];
       });
     }
     return $p->then (sub {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 2 * 6, name => 'document root, empty';
+} n => 3 * 6, name => 'document root, empty';
+
+test {
+  my $c = shift;
+  server ({
+    LIST => q<hoge>,
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+      [q</?ab>],
+      [q</LIST>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          is $res->header ('Content-Type'), q{text/html; charset=utf-8};
+          is $res->header ('X-Content-Type-Options'), q{nosniff};
+          like $res->header ('Last-Modified'), qr{GMT};
+          unlike $res->header ('Last-Modified'), qr{ 1970 };
+          like $res->content, qr{</html>};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 3 * 6, name => 'document root, LIST';
 
 test {
   my $c = shift;
@@ -44,6 +77,7 @@ test {
     for my $x (
       [q</hoge>, 301, q<http://> . $server->get_host . q</hoge/>],
       [q</hoge/>],
+      [q</hoge/LIST>],
       [q</hoge/?ab>],
       [q</hoge-5.1./>],
     ) {
@@ -61,7 +95,7 @@ test {
             is $res->header ('Content-Type'), q{text/html; charset=utf-8};
             like $res->header ('Last-Modified'), qr{GMT};
             unlike $res->header ('Last-Modified'), qr{ 1970 };
-            like $res->content, qr{</ul>};
+            like $res->content, qr{</html>};
           }
         } $c, name => $x->[0];
       });
@@ -70,7 +104,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 3 * 1 + 5 * 3, name => 'directory';
+} n => 3 * 1 + 5 * 4, name => 'directory';
 
 test {
   my $c = shift;
@@ -82,6 +116,7 @@ test {
     my $p = Promise->resolve;
     for my $x (
       [q</foo/bar/>],
+      [q</foo/bar/LIST>],
     ) {
       $p = $p->then (sub {
         return GET ($server, $x->[0]);
@@ -99,7 +134,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 4, name => 'directory';
+} n => 4 * 2, name => 'directory';
 
 test {
   my $c = shift;
@@ -110,6 +145,7 @@ test {
     my $p = Promise->resolve;
     for my $x (
       [q</>],
+      [q</LIST>],
     ) {
       $p = $p->then (sub {
         return GET ($server, $x->[0]);
@@ -125,7 +161,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 2, name => 'hidden files';
+} n => 2 * 2, name => 'hidden files';
 
 test {
   my $c = shift;
@@ -188,6 +224,7 @@ test {
     my $p = Promise->resolve;
     for my $x (
       [q</>],
+      [q</LIST>],
     ) {
       $p = $p->then (sub {
         return GET ($server, $x->[0]);
@@ -203,7 +240,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 2, name => 'default README';
+} n => 2*2, name => 'default README';
 
 test {
   my $c = shift;

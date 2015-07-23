@@ -99,7 +99,7 @@ AddLanguage ja .ja
 AddLanguage ja .dat
 AddLanguage ja,en .en
 IndexOptions +NameWidth=41 +HTMLTable
-IndexOptions TrackModified -IconsAreLinks
+IndexOptions TrackModified -IconsAreLinks +FancyIndexing
     },
     'foo' => q{aa},
   })->then (sub {
