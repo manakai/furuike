@@ -240,9 +240,8 @@ I<fileName> is C<Furuike> or C<mod_headers.c>.
 In an C<.htaccess> file, the directives between the C<< <Files
 expression> >> line and the C<< </Files> >> line are only applied to
 the response using the file whose name matches to the expression.
-Only C<Header> and C<AddCharset> directives and C<IfModule> lines can
-be specified between the lines.  The expression can be one of
-followings:
+Only the C<Header> directive and C<IfModule> lines can be specified
+between the lines.  The expression can be one of followings:
 
   ...              File name is equal to |...|.
   "..."            File name is equal to |...|.
@@ -402,6 +401,24 @@ limited to C<text/plain>.
 
 If there is the directory readme file or the directory license file,
 they are included at the end of the directory index view.
+
+=item HeaderName SEGMENT
+
+Specify the header file name for the directory.  The argument must be
+a valid non-empty percent-decoded path segment as described in earlier
+section.
+
+The default value of this directive is C<HEADER>.
+
+If there is a file whose name is exactly equal to the specified
+segment, it is used as the directory header file.  Otherwise, if there
+are files whose base name is equal to the specified segment, whose
+MIME type is C<text/html>, and has no content-coding extension, one of
+such files is chosen by normal file selection rule and used as the
+directory header file.
+
+If there is the directory header file, it is used as the header part
+of the C<body> element of the directory index view.
 
 =item ErrorDocument 404 /PATH/SEGMENTS
 

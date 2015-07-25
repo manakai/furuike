@@ -36,9 +36,7 @@ sub parse_char_string ($$) {
       my $name = $1;
       my $args = $2;
       my $parser = $DirectiveParsers->{$name};
-      if ($parser and
-          (not defined $in_files or
-           {Header => 1, AddCharset => 1}->{$name})) {
+      if ($parser and (not defined $in_files or $name eq 'Header')) {
         $parser->($self, $name, $args, $in_files);
       } else {
         $onerror->(level => 'm', type => 'htaccess:unknown directive', value => $name);
