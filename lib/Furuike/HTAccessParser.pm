@@ -57,8 +57,8 @@ sub parse_char_string ($$) {
       $in_files = [['=', $1]];
     } elsif (m{^\s*<Files\s+([A-Za-z0-9_.-]+)>\s*$}) {
       $in_files = [['=', $1]];
-    } elsif (m{^\s*<Files\s+~\s+"([A-Za-z0-9_.-]+)">\s*$}) {
-      $in_files = [['*', $1]];
+    } elsif (m{^\s*<Files\s+~\s+"([A-Za-z0-9_.-]+(?:\|[A-Za-z0-9_.-]+)*)">\s*$}) {
+      $in_files = [map { ['*', $_] } split /\|/, $1];
     } elsif (m{^\s*<Files\s+~\s+"\^\(([A-Za-z0-9_.-]+)\|([A-Za-z0-9_.-]+)\)">\s*$}) {
       $in_files = [['^', $1], ['^', $2]];
     } elsif (/\S/) {
@@ -89,6 +89,7 @@ $DirectiveParsers->{IndexStyleSheet} = sub {
 }; # IndexStyleSheet
 
 $DirectiveParsers->{IndexIgnore} =
+$DirectiveParsers->{RemoveHandler} =
 $DirectiveParsers->{DirectoryIndex} = sub {
   my ($self, $name, $args) = @_;
   if ($args =~ m{^\s*\S+(?:\s+\S+)*\s*$}) {
@@ -201,6 +202,17 @@ $DirectiveParsers->{AddDescription} = sub {
     $self->onerror->(level => 'm', type => 'htaccess:AddDescription:syntax error', value => $args);
   }
 }; # AddDescription
+
+$DirectiveParsers->{AddIcon} = sub {
+  my ($self, $name, $args) = @_;
+  if ($args =~ m{^\s*\(([^(),\s]+),([^(),\s]+)\)\s+(\S+(?:\s+\S+)*)\s*$}) {
+    my $data = {name => $name, alt => $1, url => $2};
+    $data->{exts} = [grep { length } map { s/^\.//; $_ } split /\s+/, $3];
+    push @{$self->{data}}, $data;
+  } else {
+    $self->onerror->(level => 'm', type => 'htaccess:AddIcon:syntax error', value => $args);
+  }
+}; # AddIcon
 
 1;
 

@@ -306,6 +306,44 @@ test {
   });
 } n => 6 * 2, name => 'type-charset extensions';
 
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      <Files ~ "abc">
+        Header add X-Foo "bar"
+      </Files>
+      <Files ~ "xx|y-y|zz">
+        Header add X-Foo "baz"
+      </Files>
+    },
+    'xabcd' => q{},
+    'bxxb' => q{},
+    'by-yb' => q{},
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</xabcd>, 'bar'],
+      [q</bxxb>, 'baz'],
+      [q</by-yb>, 'baz'],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          is $res->header ('X-Foo'), $x->[1];
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 2 * 3, name => '<Files ~ "...">';
+
 run_tests;
 
 =head1 LICENSE
