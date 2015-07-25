@@ -527,6 +527,169 @@ test {
 test {
   my $c = shift;
   server ({
+    'HEADER.html' => 'a<p>bc',
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{a<p>bc};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 2, name => 'HEADER directory';
+
+test {
+  my $c = shift;
+  server ({
+    'hoge/HEADER.html' => 'a<p>bc',
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</hoge/>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{a<p>bc};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 2, name => 'HEADER in directory';
+
+test {
+  my $c = shift;
+  server ({
+    'HEADER' => 'a<p>bc',
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{a<p>bc};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 2, name => 'HEADER directory';
+
+test {
+  my $c = shift;
+  server ({
+    'HEADER.txt' => 'a<p>bc',
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          unlike $res->content, qr{a<p>bc};
+          unlike $res->content, qr{a&lt;p&gt;bc};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 3, name => 'HEADER directory';
+
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      HeaderName foo
+    },
+    'foo.html' => 'a<p>bc',
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{a<p>bc};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 2, name => 'HeaderName directory';
+
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      HeaderName foo.html
+    },
+    'foo.html' => 'a<p>bc',
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+          like $res->content, qr{a<p>bc};
+        } $c, name => $x->[0];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 2, name => 'HeaderName directory';
+
+test {
+  my $c = shift;
+  server ({
     'LICENSE/index.html' => 'Agava',
   })->then (sub {
     my $server = $_[0];

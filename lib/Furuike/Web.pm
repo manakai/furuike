@@ -107,7 +107,7 @@ sub new_config () {
     ext_to_charset => {%$ExtToCharset},
     ext_to_encoding => {%$ExtToEncoding},
     directory_index => ['index'],
-    header_name => undef,
+    header_name => 'HEADER',
     readme_name => 'README',
     license_name => 'LICENSE',
     virtual => {is_directory => 1, children => {}},
@@ -174,7 +174,8 @@ sub file_name_to_metadata ($$) {
 
   if (not defined $file->{type}) {
     if ($file->{base_name} eq $config->{readme_name} or
-        $file->{base_name} eq $config->{license_name}) {
+        $file->{base_name} eq $config->{license_name} or
+        $file->{base_name} eq $config->{header_name}) {
       $file->{type} = 'text/plain';
     }
   }
@@ -268,14 +269,16 @@ sub send_file ($$$$$$) {
         if (not defined $charset) {
           my $charset_type = $CharsetTypeByMIMEType->{$type} // '';
           if ($charset_type eq 'default') {
-            if ($meta->{base_name} eq $config->{readme_name}) {
+            if ($meta->{base_name} eq $config->{readme_name} or
+                $meta->{base_name} eq $config->{header_name}) {
               $charset = $config->{index_options}->{charset};
             }
             $charset //= $config->{default_charset};
           } elsif ($charset_type eq 'utf-8') {
             $charset = 'utf-8';
           } elsif ($type =~ m{\+xml\z}) {
-            if ($meta->{base_name} eq $config->{readme_name}) {
+            if ($meta->{base_name} eq $config->{readme_name} or
+                $meta->{base_name} eq $config->{header_name}) {
               $charset = $config->{index_options}->{charset};
             }
             $charset //= $config->{default_charset};
@@ -336,7 +339,12 @@ sub send_directory ($$$$$) {
     };
   })->then (sub {
     my $names = $_[0];
+    my $has_readme;
+    my $has_header;
     my $has_license;
+    my @image_file;
+    my @other_file;
+    my $t = '';
     return $file->stat->then (sub {
       my $mtime = $_[0]->[9];
       $http->set_status (200);
@@ -348,35 +356,19 @@ sub send_directory ($$$$$) {
         $http->add_response_header ($_->[0], $_->[1]) unless defined $_->[2];
       }
 
-      my $has_readme;
       my $dir_name = $dir_path->basename;
-      my $x = '';
-      my $n = @$path_segments - 3;
-      my $t = q{<!DOCTYPE HTML>};
+      $t .= q{<!DOCTYPE HTML>};
       $t .= sprintf q{<link rel=stylesheet href="%s">},
           htescape $config->{index_style_sheet}
           if defined $config->{index_style_sheet};
       $t .= sprintf q{
-        <title>%s</title><h1><a href=/ rel=top><code>%s</code></a>%s</h1>
+        <title>%s</title>
       },
-          htescape (join '/', @$path_segments),
-          htescape ($http->url->{host}.':'.$http->url->{port}),
-          (join '/', map {
-            $x .= percent_encode_c ($_) . '/';
-            if (length $_) {
-              sprintf q{<a href="%s" rel="%s"><code>%s</code></a>},
-                  htescape $x,
-                  (join ' ', ('up') x $n--) || 'self',
-                  htescape $_;
-            } else {
-              '';
-            }
-          } @$path_segments);
+          htescape (join '/', @$path_segments);
 
-      my @image_file;
-      my @other_file;
       for (sort { $a cmp $b } grep { /\A$Segment\z/o } @$names) {
         $has_readme = 1 if $config->{readme_name} eq $_;
+        $has_header = 1 if $config->{header_name} eq $_;
         $has_license = 1 if $config->{license_name} eq $_;
         my $parsed = file_name_to_metadata $config, $_;
         my @t = ('<li>');
@@ -408,6 +400,59 @@ sub send_directory ($$$$$) {
           push @other_file, join '', @t;
         }
       } # $names
+
+      if ($has_header) {
+        my $f = Promised::File->new_from_path ($dir_path->child ($config->{header_name}));
+        return $f->lstat->then (sub {
+          if (-f $_[0] and not -l $_[0]) {
+            return [$dir_path, $f, {type => 'text/html'}];
+          }
+          return undef;
+        });
+      }
+      return conneg $http, $config, $names, $dir_path, [$config->{header_name}], sub {
+        return 0 unless defined $_->{type};
+        return 0 unless $_->{type} eq 'text/html';
+        return 0 if defined $_->{encoding};
+        return 1;
+      };
+    })->then (sub {
+      return 0 unless defined $_[0];
+      my ($path, $f, $meta) = @{$_[0]};
+      my $charset = $meta->{charset} // $config->{index_options}->{charset} // 'utf-8';
+      if ($charset eq 'utf-8') {
+        if ($meta->{type} eq 'text/html') {
+          return $f->read_char_string->then (sub {
+            $http->send_response_body_as_text ($_[0]);
+          })->then (sub { return 1 });
+        }
+      } else {
+        ## Note that $charset must be a valid encoding label
+        # XXX Use Web::Encoding
+        if ($meta->{type} eq 'text/html') {
+          return $f->read_byte_string->then (sub {
+            $http->send_response_body_as_text (decode $charset, $_[0]);
+          })->then (sub { return 1 });
+        }
+      }
+    })->then (sub {
+      unless ($_[1]) {
+        my $x = '';
+        my $n = @$path_segments - 3;
+        $t .= sprintf q{<h1><a href=/ rel=top><code>%s</code></a>%s</h1>},
+            htescape ($http->url->{host}.':'.$http->url->{port}),
+            (join '/', map {
+              $x .= percent_encode_c ($_) . '/';
+              if (length $_) {
+                sprintf q{<a href="%s" rel="%s"><code>%s</code></a>},
+                    htescape $x,
+                    (join ' ', ('up') x $n--) || 'self',
+                    htescape $_;
+              } else {
+                '';
+              }
+            } @$path_segments);
+      }
 
       if (@image_file) {
         $t .= sprintf q{<section id=images><h1>Images</h1><ul>%s</ul></section>},
@@ -593,7 +638,6 @@ sub check_htaccess ($$) {
             $type = $MIMETypeMapping->{$type} // $type;
             $config->{ext_to_mime_type}->{$_} = $type for @{$directive->{exts}};
           } elsif ($directive->{name} eq 'AddCharset') {
-            # XXX files
             my $type = $directive->{type};
             $type =~ tr/A-Z/a-z/; ## ASCII case-insensitive.
             $config->{ext_to_charset}->{$_} = $type for @{$directive->{exts}};
@@ -676,11 +720,9 @@ sub check_htaccess ($$) {
                 unless $directive->{value} =~ /\A$Segment\z/o;
             $config->{readme_name} = $directive->{value};
           } elsif ($directive->{name} eq 'HeaderName') {
-            for (@{$directive->{values}}) {
-              die "Bad directive - ReadmeName $directive->{value}"
-                  unless $directive->{value} =~ /\A$Segment\z/o;
-              $config->{header_name} = $directive->{value};
-            }
+            die "Bad directive - ReadmeName $directive->{value}"
+                unless $directive->{value} =~ /\A$Segment\z/o;
+            $config->{header_name} = $directive->{value};
           } elsif ($directive->{name} eq 'ErrorDocument') {
             if ($directive->{path} =~ m{\A(?:/$Segment)+\z}o) {
               $config->{error_document}->{$directive->{status}}
@@ -721,10 +763,6 @@ sub check_htaccess ($$) {
             } else {
               die "Unknown handler |$directive->{type}|";
             }
-
-            # XXX AddCharset in <Files>
-            # XXX HeaderName
-
           } else {
             die "Unknown directive |$directive->{name}|";
           }
