@@ -396,7 +396,8 @@ sub send_directory ($$$$$) {
               htescape $name, htescape $_;
         }
         push @t, q{</span>};
-        my $desc = $config->{index_descs}->{$parsed->{file_name}};
+        my $desc = $config->{index_descs}->{$parsed->{file_name}} //
+                   $config->{index_descs}->{$parsed->{base_name}};
         if (defined $desc) {
           push @t, sprintf q{ <span class=desc>%s</span>},
               htescape $desc;
@@ -710,7 +711,9 @@ sub check_htaccess ($$) {
             $current->{all} = 1 if $directive->{all_descendants};
           } elsif ($directive->{name} eq 'FuruikeRedirectTop') {
             $config->{redirect_top}->{$directive->{url}} = 1;
-          } elsif ($directive->{name} eq 'IndexIgnore') {
+          } elsif ($directive->{name} eq 'IndexIgnore' or
+                   $directive->{name} eq 'AddIcon' or
+                   $directive->{name} eq 'RemoveHandler') {
             # ignored
           } elsif ($directive->{name} eq 'AddHandler') {
             if ($directive->{type} eq 'cgi-script') {
@@ -723,9 +726,7 @@ sub check_htaccess ($$) {
             # XXX HeaderName
 
           } else {
-            # XXX
-            #die
-            warn "Unknown directive |$directive->{name}|";
+            die "Unknown directive |$directive->{name}|";
           }
         }
       });

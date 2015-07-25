@@ -100,6 +100,8 @@ AddLanguage ja .dat
 AddLanguage ja,en .en
 IndexOptions +NameWidth=41 +HTMLTable
 IndexOptions TrackModified -IconsAreLinks +FancyIndexing
+RemoveHandler .cgi
+AddIcon (hoge,/foo/bar/baz.png) bar.baz
     },
     'foo' => q{aa},
   })->then (sub {

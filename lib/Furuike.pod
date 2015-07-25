@@ -247,6 +247,7 @@ followings:
   ...              File name is equal to |...|.
   "..."            File name is equal to |...|.
   ~ "..."          File name contains |...|.
+  ~ "...|...|..."  File name contains one of |...|s.
   ~ "^(...|...)"   File name starts with one of |...|s.
 
 ... where C<...> is a string of one or more ASCII alphanumerics or
@@ -371,12 +372,13 @@ DEPRECATED.  Use UTF-8 everywhere.
 
 The other options have no effect.  Use of them are DEPRECATED.
 
-=item AddDescription "STRING" FILENAME
+=item AddDescription "STRING" SEGMENT
 
 Associate a short description string for a file name, used in the
 directory index view.  The first argument must be a C<">-quoted
 description string.  The second argument must be a non-empty valid
-percent-decoded path segment.
+percent-decoded path segment, which is compared to the entire file
+name or the base name of the file.
 
 =item ReadmeName SEGMENT
 
@@ -498,11 +500,13 @@ This directive has no effect.  This directive is DEPRECATED.
 
 =item AddHandler cgi-script .EXT1 .EXT2 ...
 
-This directive has no effect.  This directive is DEPRECATED.
+=item RemoveHandler .EXT1 .EXT2 ...
 
 =item IndexIgnore NAME1 NAME2 ...
 
-This directive has no effect.  This directive is DEPRECATED.
+=item AddIcon (TEXT,URL) NAME1 NAME2 ...
+
+These directives have no effect.  They are DEPRECATED.
 
 =back
 
