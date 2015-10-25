@@ -325,8 +325,8 @@ test {
     for my $x (
       [q</foo>, 301, q<http://hoge/>],
       [q</foo/>, 301, q<http://hoge/>],
-      [q</foo/fuga>, 301, q<http://hoge/fuga>],
-      [q</foo/fuga/bar>, 301, q<http://hoge/fuga/bar>],
+      [q</foo/fuga>, 301, q<http://hoge/>],
+      [q</foo/fuga/bar>, 301, q<http://hoge/>],
     ) {
       $p = $p->then (sub {
         return GET ($server, $x->[0]);

@@ -467,11 +467,9 @@ the C<Redirect> directive takes precedence.
 
 =item Redirect STATUS /PATH/SEGMENTS/ URL
 
-=item RedirectMatch STATUS /PATH/SEGMENTS/.* URL
-
-Specify that any path in a directory should return a redirect to
-another URL.  This is equivalent to the following infinite set of
-directives:
+Specify that any path in a directory should return a redirect to a URL
+in another set of URLs.  This is equivalent to the following infinite
+set of directives:
 
   Redirect STATUS /PATH/SEGMENTS URL
   Redirect STATUS /PATH/SEGMENTS/ URL
@@ -483,11 +481,32 @@ directives:
 
 For example,
 
-  RedirectMatch 301 /foo/.* http://example/
+  Redirect 301 /foo/ http://example/
 
 ... will make paths such as C</foo>, C</foo/>, C</foo/bar>, and
 C</foo/bar/baz> redirects to C<http://example/>, C<http://example/>,
 C<http://example/bar>, and C<http://example/bar/baz>, respectively.
+
+=item RedirectMatch STATUS /PATH/SEGMENTS/.* URL
+
+Specify that any path in a directory should return a redirect to a
+specific URL.  This is equivalent to the following infinite set of
+directives:
+
+  Redirect STATUS /PATH/SEGMENTS URL
+  Redirect STATUS /PATH/SEGMENTS/ URL
+  Redirect STATUS /PATH/SEGMENTS/PATH1 URL
+  Redirect STATUS /PATH/SEGMENTS/PATH2 URL
+  Redirect STATUS /PATH/SEGMENTS/PATH2/ URL
+  Redirect STATUS /PATH/SEGMENTS/PATH2/PATH3 URL
+  :
+
+For example,
+
+  RedirectMatch 301 /foo/.* http://example/
+
+... will make paths such as C</foo>, C</foo/>, C</foo/bar>, and
+C</foo/bar/baz> redirects to C<http://example/>.
 
 =item Redirect STATUS /PATH/SEGMENTS
 

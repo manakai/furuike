@@ -146,7 +146,9 @@ $DirectiveParsers->{Redirect} = sub {
 $DirectiveParsers->{RedirectMatch} = sub {
   my ($self, $name, $args) = @_;
   if ($args =~ m{^\s*(30[12378]|permanent|temp|seeother)\s+(/[A-Za-z0-9_/-]+)/\.\*\s+(\S+)\s*$}) {
-    push @{$self->{data}}, {name => 'Redirect', status => $1, from => $2, to => $3, all_descendants => 1};
+    push @{$self->{data}}, {name => 'Redirect', status => $1,
+                            from => $2, to => $3,
+                            all_descendants => 'ignore'};
   } elsif ($args =~ m{^\s*(30[12378]|permanent|temp|seeother)\s+(/[A-Za-z0-9_/-]+)\$\s+(\S+)\s*$}) {
     push @{$self->{data}}, {name => 'Redirect', status => $1, from => $2, to => $3};
   } else {
