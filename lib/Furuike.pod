@@ -442,14 +442,22 @@ file.
 
 =item RedirectMatch STATUS /PATH/SEGMENTS$ URL
 
-Specify that the path should return a redirect to the URL.
+Specify that the path should return a redirect to another URL.
 
-The first argument is the status code.  It must be either C<301> or
-C<permanent>, C<302> or C<temp>, C<303> or C<seeother>, C<307>, or
-C<308>.  The first argument can be omitted if its value is C<302>.
+The first argument is the status code.  It must be one of redirect
+status codes or their synonyms.  It can be omitted if it is C<302>.
+
+  Redirect status code   Synonym
+  ---------------------  ----------
+  301                    permanent
+  302                    temp
+  303                    seeother
+  307
+  308
 
 The second argument must be a sequence of one or more non-empty
-percent-decoded path segments prefixed by C</>.
+percent-decoded path segments prefixed by C</> and not followed by
+C</>.
 
 The third argument must be a URL, absolute or relative.  It is used as
 the C<Location:> header value.
@@ -461,17 +469,25 @@ the C<Redirect> directive takes precedence.
 
 =item RedirectMatch STATUS /PATH/SEGMENTS/.* URL
 
-Same as C<Redirect STATUS /PATH/SEGMENTS URL> but any number of path
-segments can be followed.  If a redirect is defined using this syntax,
-any path whose prefix is equal to the specified path segments are also
-redirected.
+Specify that any path in a directory should return a redirect to
+another URL.  This is equivalent to the following infinite set of
+directives:
+
+  Redirect STATUS /PATH/SEGMENTS URL
+  Redirect STATUS /PATH/SEGMENTS/ URL
+  Redirect STATUS /PATH/SEGMENTS/PATH1 URL/PATH1
+  Redirect STATUS /PATH/SEGMENTS/PATH2 URL/PATH2
+  Redirect STATUS /PATH/SEGMENTS/PATH2/ URL/PATH2/
+  Redirect STATUS /PATH/SEGMENTS/PATH2/PATH3 URL/PATH2/PATH3
+  :
 
 For example,
 
   RedirectMatch 301 /foo/.* http://example/
 
 ... will make paths such as C</foo>, C</foo/>, C</foo/bar>, and
-C</foo/bar/baz> redirects to C<http://example/>.
+C</foo/bar/baz> redirects to C<http://example/>, C<http://example/>,
+C<http://example/bar>, and C<http://example/bar/baz>, respectively.
 
 =item Redirect STATUS /PATH/SEGMENTS
 
@@ -481,17 +497,24 @@ The first argument is the status code.  It must be either a C<4xx>, a
 C<5xx>, or C<gone> (= C<410>).
 
 The second argument must be a sequence of one or more non-empty
-percent-decoded path segments prefixed by C</>.
+percent-decoded path segments prefixed by C</>, not followed by C</>.
 
 If there are conflicting file or directory and C<Redirect> directive,
 the C<Redirect> directive takes precedence.
 
 =item Redirect STATUS /PATH/SEGMENTS/
 
-Same as C<Redirect STATUS /PATH/SEGMENTS> but any number of path
-segments can be followed.  If a status is defined using this syntax,
-any path whose prefix is equal to the specified path segments are also
-associated with that status.
+Specify that any path in a directory should return a redirect to
+another URL.  This is equivalent to the following infinite set of
+directives:
+
+  Redirect STATUS /PATH/SEGMENTS
+  Redirect STATUS /PATH/SEGMENTS/
+  Redirect STATUS /PATH/SEGMENTS/PATH1
+  Redirect STATUS /PATH/SEGMENTS/PATH2
+  Redirect STATUS /PATH/SEGMENTS/PATH2/
+  Redirect STATUS /PATH/SEGMENTS/PATH2/PATH3
+  :
 
 =item FuruikeRedirectTop SCHEME://AUTHORITY/
 

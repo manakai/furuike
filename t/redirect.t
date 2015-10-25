@@ -325,8 +325,8 @@ test {
     for my $x (
       [q</foo>, 301, q<http://hoge/>],
       [q</foo/>, 301, q<http://hoge/>],
-      [q</foo/fuga>, 301, q<http://hoge/>],
-      [q</foo/fuga/bar>, 301, q<http://hoge/>],
+      [q</foo/fuga>, 301, q<http://hoge/fuga>],
+      [q</foo/fuga/bar>, 301, q<http://hoge/fuga/bar>],
     ) {
       $p = $p->then (sub {
         return GET ($server, $x->[0]);
@@ -383,6 +383,40 @@ test {
     })->then (sub { done $c; undef $c });
   });
 } n => 8 * 2, name => 'RedirectMatch';
+
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      Redirect 301 /hoge/ https://hoge/fuga/
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</hoge>, 301, q<https://hoge/fuga/>],
+      [q</hoge/>, 301, q<https://hoge/fuga/>],
+      [q</hoge/abc>, 301, q<https://hoge/fuga/abc>],
+      [q</hoge/a/b/>, 301, q<https://hoge/fuga/a/b/>],
+      [q</hoge/a/b/z>, 301, q<https://hoge/fuga/a/b/z>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, $x->[1];
+          $x->[2] =~ s{^http://HOST}{'http://'.$server->get_host}e
+              if defined $x->[2];
+          is $res->header ('Location'), $x->[2];
+        } $c, name => [$x->[0], $x->[3]];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 5 * 2, name => 'Redirect descendants';
 
 run_tests;
 
