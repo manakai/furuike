@@ -133,6 +133,8 @@ $DirectiveParsers->{Redirect} = sub {
   } else {
     $self->onerror->(level => 'm', type => 'htaccess:Redirect:syntax error', value => $args);
   }
+  $self->{data}->[-1]->{all_descendants} = 1
+      if $self->{data}->[-1]->{from} =~ m{/$};
   $self->{data}->[-1]->{status} = {
     gone => 410,
     permanent => 301,
