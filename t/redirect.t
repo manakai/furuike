@@ -418,6 +418,84 @@ test {
   });
 } n => 5 * 2, name => 'Redirect descendants';
 
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      Redirect 301 /~foo/bar https://hoge/xy/{mypage}
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</~foo/bar>, 301, q<https://hoge/xy/>],
+      [q</~foo/bar?fuga>, 301, q<https://hoge/xy/>],
+      [q</~foo/bar?mypage=abc>, 301, q<https://hoge/xy/abc>],
+      [q</~foo/bar?mypage=abc%E4%BD%8D>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
+      [q</~foo/bar?_charset_=utf-8&mypage=abc%E4%BD%8D>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
+      [q</~foo/bar?_charset_=utf-8;mypage=abc%E4%BD%8D>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
+      [q</~foo/bar?mypage=abc%E4%BD%8D&_charset_=utf-8>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
+      [q</~foo/bar?_charset_=euc-jp&mypage=abc%B0%CC>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
+      [q</~foo/bar?mypage=abc%B0%CC&_charset_=euc-jp>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
+      [q</~foo/bar?_charset_=euc-jp&mypage=abc%2F%2F%B0%CC>, 301, q<https://hoge/xy/abc%2F%2F%E4%BD%8D>],
+      [q</~foo/bar?_charset_=euc-jp&mypage=abc%2F%B0%CC>, 301, q<https://hoge/xy/abc%2F%E4%BD%8D>],
+      [q</~foo/bar?_charset_=euc-jp&mypage=abc%2B%B0%CC>, 301, q<https://hoge/xy/abc%2B%E4%BD%8D>],
+      [q</~foo/bar/>, 404, undef],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, $x->[1];
+          $x->[2] =~ s{^http://HOST}{'http://'.$server->get_host}e
+              if defined $x->[2];
+          is $res->header ('Location'), $x->[2];
+        } $c, name => [$x->[0], $x->[3]];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 13 * 2, name => 'Redirect {mypage}';
+
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      Redirect 301 /~foo/bar/ https://hoge/xy/{sw2005}
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</~foo/bar>, 301, q<https://hoge/xy/>],
+      [q</~foo/bar/>, 301, q<https://hoge/xy/>],
+      [q</~foo/bar/abc>, 301, q<https://hoge/xy/abc>],
+      [q</~foo/bar/abc%E4%BD%8D>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
+      [q</~foo/bar/abc%E4%BD%8D/a>, 301, q<https://hoge/xy/abc%E4%BD%8D%2F%2Fa>],
+      [q</~foo/bar/abc%E4%BD%8D//a>, 301, q<https://hoge/xy/abc%E4%BD%8D%2F%2F%2F%2Fa>],
+      [q</~foo/bar/abc%E4%BD%8D%2Ba>, 301, q<https://hoge/xy/abc%E4%BD%8D%2Ba>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, $x->[1];
+          $x->[2] =~ s{^http://HOST}{'http://'.$server->get_host}e
+              if defined $x->[2];
+          is $res->header ('Location'), $x->[2];
+        } $c, name => [$x->[0], $x->[3]];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 7 * 2, name => 'Redirect {sw2005}';
+
 run_tests;
 
 =head1 LICENSE

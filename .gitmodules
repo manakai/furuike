@@ -45,6 +45,8 @@
 [submodule "perl-ooutils"]
 	path = perl-ooutils
 	url = git://github.com/wakaba/perl-ooutils
+	track = master
 [submodule "modules/ooutils"]
 	path = modules/ooutils
 	url = git://github.com/wakaba/perl-ooutils
+	track = master

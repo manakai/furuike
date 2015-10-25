@@ -755,6 +755,7 @@ sub check_htaccess ($$) {
             $current->{status} = $directive->{status};
             $current->{all} = $directive->{all_descendants}
                 if $directive->{all_descendants};
+            $current->{rule} = $directive->{rule} // '';
           } elsif ($directive->{name} eq 'FuruikeRedirectTop') {
             $config->{redirect_top}->{$directive->{url}} = 1; 
          } elsif ($directive->{name} eq 'IndexIgnore' or
@@ -847,9 +848,14 @@ sub psgi_app ($$) {
           $current_virtual = $current_virtual->{children}->{$segment} ||= {};
           if ($current_virtual->{all}) {
             if (defined $current_virtual->{location}) {
+              my $url = $current_virtual->{location};
+              if ($current_virtual->{rule} eq 'sw2005') {
+                $url .= join '%2F%2F', map { percent_encode_c $_ } @path;
+              } elsif (not $current_virtual->{all} eq 'ignore') {
+                $url .= join '/', map { percent_encode_c $_ } @path;
+              }
               return redirect $http, $current_virtual->{status},
-                  $current_virtual->{location} . ($current_virtual->{all} eq 'ignore' ? '' : join '/', map { percent_encode_c $_ } @path),
-                  'Redirect';
+                  $url, 'Redirect';
             } else {
               return error $http, $config, $docroot,
                   $current_virtual->{status}, 'Error', undef;
@@ -922,7 +928,16 @@ sub psgi_app ($$) {
           $current_virtual = $current_virtual->{children}->{$segment};
           if (defined $current_virtual->{status}) {
             if (defined $current_virtual->{location}) {
-              return redirect $http, $current_virtual->{status}, $current_virtual->{location}, 'Redirect';
+              my $url = $current_virtual->{location};
+              if ($current_virtual->{rule} eq 'mypage') {
+                # from:...?mypage={mypage}&_charset_={charset}
+                my $q = {map { percent_decode_b $_ } map { split /=/, $_, 2 } split /[;&]/, $http->url->{query} // ''};
+                my $charset = $q->{_charset_} // '';
+                $charset = 'utf-8' unless $charset eq 'euc-jp';
+                my $page = decode $charset, $q->{mypage} // '';
+                $url .= percent_encode_c $page;
+              }
+              return redirect $http, $current_virtual->{status}, $url, 'Redirect';
             } else {
               return error $http, $config, $docroot,
                   $current_virtual->{status}, 'Error', undef;
