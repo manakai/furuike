@@ -323,7 +323,16 @@ sub send_file ($$$$$$) {
         }
       }
 
-      $http->send_response_body_as_ref (\($_[0]));
+      if (defined $type and $type eq 'text/html' and
+          defined $config->{html_footer_ref}) {
+        my $x = $_[0];
+        $x =~ s{(?=</[Bb][Oo][Dd][Yy])}{${$config->{html_footer_ref}}} or
+        $x =~ s{(?=</[Hh][Tt][Mm][Ll])}{${$config->{html_footer_ref}}} or
+        ($x .= ${$config->{html_footer_ref}});
+        $http->send_response_body_as_ref (\$x);
+      } else {
+        $http->send_response_body_as_ref (\($_[0]));
+      }
       $http->close_response_body;
       access_log $http, $status, 'File', $path;
     });
@@ -464,8 +473,6 @@ sub send_directory ($$$$$) {
             join '', @other_file;
       }
 
-      $t .= '</html>';
-
       $http->send_response_body_as_text ($t);
 
       if ($has_readme) {
@@ -537,6 +544,10 @@ sub send_directory ($$$$$) {
             (sprintf '<section id=LICENSE><h1 lang=en><a href=LICENSE rel=license>License</a></h1><pre>%s</pre></section>', htescape $_[0]);
       });
     })->then (sub {
+      if (defined $config->{html_footer_ref}) {
+        $http->send_response_body_as_ref ($config->{html_footer_ref});
+      }
+      $http->send_response_body_as_ref (\'</html>');
       $http->close_response_body;
       access_log $http, 200, 'Directory', $dir_path;
     });
@@ -777,8 +788,8 @@ sub check_htaccess ($$) {
   });
 } # check_htaccess
 
-sub psgi_app ($$) {
-  my ($class, $docroot) = @_;
+sub psgi_app ($$$) {
+  my ($class, $docroot, $footerref) = @_;
   return sub {
     my $http = Wanage::HTTP->new_from_psgi_env ($_[0]);
     return $http->send_response (onready => sub {
@@ -788,6 +799,7 @@ sub psgi_app ($$) {
 
       my $config = new_config;
       my $current_virtual = $config->{virtual};
+      $config->{html_footer_ref} = $footerref;
 
       my $path = $http->url->{path};
       if ($path =~ s{,([^/,]*)\z}{}) {
