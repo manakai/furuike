@@ -85,6 +85,7 @@ my $CharsetTypeByMIMEType = {
   'application/xml-dtd' => 'default',
   'text/xml-external-parsed-entity' => 'default',
   'application/xml-external-parsed-entity' => 'default',
+  'text/x-h2h' => 'default',
   'text/cache-manifest' => 'utf-8',
   'application/json' => 'utf-8',
 };
