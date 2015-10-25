@@ -930,8 +930,10 @@ sub psgi_app ($$) {
             if (defined $current_virtual->{location}) {
               my $url = $current_virtual->{location};
               if ($current_virtual->{rule} eq 'mypage') {
-                # from:...?mypage={mypage}&_charset_={charset}
-                my $q = {map { percent_decode_b $_ } map { split /=/, $_, 2 } split /[;&]/, $http->url->{query} // ''};
+                # ...?mypage={mypage}&_charset_={charset}
+                my $query = $http->url->{query} // '';
+                $query = 'mypage=' . $query unless $query =~ /=/;
+                my $q = {map { percent_decode_b $_ } map { split /=/, $_, 2 } split /[;&]/, $query};
                 my $charset = $q->{_charset_} // '';
                 $charset = 'utf-8' unless $charset eq 'euc-jp';
                 my $page = decode $charset, $q->{mypage} // '';

@@ -429,7 +429,9 @@ test {
     my $p = Promise->resolve;
     for my $x (
       [q</~foo/bar>, 301, q<https://hoge/xy/>],
-      [q</~foo/bar?fuga>, 301, q<https://hoge/xy/>],
+      [q</~foo/bar?fuga>, 301, q<https://hoge/xy/fuga>],
+      [q</~foo/bar?fuga%E4%BD%8D>, 301, q<https://hoge/xy/fuga%E4%BD%8D>],
+      [q</~foo/bar?fuga=x>, 301, q<https://hoge/xy/>],
       [q</~foo/bar?mypage=abc>, 301, q<https://hoge/xy/abc>],
       [q</~foo/bar?mypage=abc%E4%BD%8D>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
       [q</~foo/bar?_charset_=utf-8&mypage=abc%E4%BD%8D>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
@@ -458,7 +460,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 13 * 2, name => 'Redirect {mypage}';
+} n => 15 * 2, name => 'Redirect {mypage}';
 
 test {
   my $c = shift;
