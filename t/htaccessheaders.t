@@ -47,16 +47,21 @@ test {
   my $c = shift;
   server ({
     '.htaccess' => q{
+      AddType text/x-h2h .h2h
       AddCharset ISO-8859-1 .iso
     },
     'aa.txt.iso' => q{aa},
     'aa.iso' => q{aa},
+    'bb.h2h' => q{aa},
+    'bb.h2h.iso' => q{aa},
   })->then (sub {
     my $server = $_[0];
     my $p = Promise->resolve;
     for my $x (
       [q</aa.txt>, 'text/plain; charset=iso-8859-1'],
       [q</aa.txt.iso>, 'text/plain; charset=iso-8859-1'],
+      [q</bb.h2h>, 'text/x-h2h; charset=utf-8'],
+      [q</bb.h2h.iso>, 'text/x-h2h; charset=iso-8859-1'],
       [q</aa.iso>, undef],
     ) {
       $p = $p->then (sub {
@@ -73,7 +78,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 3 * 2, name => 'AddCharset';
+} n => 5 * 2, name => 'AddCharset';
 
 test {
   my $c = shift;
