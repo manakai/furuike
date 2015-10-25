@@ -133,6 +133,10 @@ $DirectiveParsers->{Redirect} = sub {
   } else {
     $self->onerror->(level => 'm', type => 'htaccess:Redirect:syntax error', value => $args);
   }
+  if (defined $self->{data}->[-1]->{to} and
+      $self->{data}->[-1]->{to} =~ s<\{(mypage|sw2005)\}$><>) {
+    $self->{data}->[-1]->{rule} = $1;
+  }
   $self->{data}->[-1]->{all_descendants} = 1
       if $self->{data}->[-1]->{from} =~ m{/$};
   $self->{data}->[-1]->{status} = {
