@@ -440,6 +440,8 @@ file.
 
 =item Redirect STATUS /PATH/SEGMENTS URL
 
+=item RedirectMatch STATUS /PATH/SEGMENTS$ URL
+
 Specify that the path should return a redirect to the URL.
 
 The first argument is the status code.  It must be either C<301> or
@@ -455,15 +457,13 @@ the C<Location:> header value.
 If there are conflicting file or directory and C<Redirect> directive,
 the C<Redirect> directive takes precedence.
 
-=item RedirectMatch STATUS /PATH/SEGMENTS$ URL
-
-Same as C<Redirect STATUS /PATH/SEGMENTS URL>.
+=item Redirect STATUS /PATH/SEGMENTS/ URL
 
 =item RedirectMatch STATUS /PATH/SEGMENTS/.* URL
 
-Same as C<Redirect STATUS /PATH/SEGMENTS URL> but the last path
-segment is C<.*>.  If a redirect is defined using this syntax, any
-path whose prefix is equal to the specified path segments are also
+Same as C<Redirect STATUS /PATH/SEGMENTS URL> but any number of path
+segments can be followed.  If a redirect is defined using this syntax,
+any path whose prefix is equal to the specified path segments are also
 redirected.
 
 For example,
@@ -485,6 +485,13 @@ percent-decoded path segments prefixed by C</>.
 
 If there are conflicting file or directory and C<Redirect> directive,
 the C<Redirect> directive takes precedence.
+
+=item Redirect STATUS /PATH/SEGMENTS/
+
+Same as C<Redirect STATUS /PATH/SEGMENTS> but any number of path
+segments can be followed.  If a status is defined using this syntax,
+any path whose prefix is equal to the specified path segments are also
+associated with that status.
 
 =item FuruikeRedirectTop SCHEME://AUTHORITY/
 

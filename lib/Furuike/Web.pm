@@ -740,8 +740,10 @@ sub check_htaccess ($$) {
               $current = $current->{children}->{$_};
               $current->{is_directory} = 1;
             }
-            $current->{children}->{$from_last} ||= {};
-            $current = $current->{children}->{$from_last};
+            unless ($from_last eq '' and $directive->{all_descendants}) {
+              $current->{children}->{$from_last} ||= {};
+              $current = $current->{children}->{$from_last};
+            }
             if (defined $directive->{to}) {
               my $to = $directive->{to};
               for (keys %{$config->{redirect_top} or {}}) {
@@ -752,8 +754,8 @@ sub check_htaccess ($$) {
             $current->{status} = $directive->{status};
             $current->{all} = 1 if $directive->{all_descendants};
           } elsif ($directive->{name} eq 'FuruikeRedirectTop') {
-            $config->{redirect_top}->{$directive->{url}} = 1;
-          } elsif ($directive->{name} eq 'IndexIgnore' or
+            $config->{redirect_top}->{$directive->{url}} = 1; 
+         } elsif ($directive->{name} eq 'IndexIgnore' or
                    $directive->{name} eq 'AddIcon' or
                    $directive->{name} eq 'RemoveHandler') {
             # ignored
@@ -841,8 +843,13 @@ sub psgi_app ($$) {
           });
         } elsif (@path and $segment =~ /\A$Segment\z/o) { # non-last segment
           $current_virtual = $current_virtual->{children}->{$segment} ||= {};
-          if ($current_virtual->{all} and defined $current_virtual->{location}) {
-            return redirect $http, $current_virtual->{status}, $current_virtual->{location}, 'Redirect';
+          if ($current_virtual->{all}) {
+            if (defined $current_virtual->{location}) {
+              return redirect $http, $current_virtual->{status}, $current_virtual->{location}, 'Redirect';
+            } else {
+              return error $http, $config, $docroot,
+                  $current_virtual->{status}, 'Error', undef;
+            }
           } elsif (not $current_virtual->{is_directory}) {
             if (defined $current_virtual->{status} and
                 not defined $current_virtual->{location}) {

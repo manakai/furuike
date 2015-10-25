@@ -117,9 +117,9 @@ test {
       [q</a2>, 410, undef],
       [q</a2/>, 410, undef],
       [q</a2/a>, 410, undef],
-      [q</a3>, 301, 'http://HOST/a3/'],
+      [q</a3>, 500, undef],
       [q</a3/>, 500, undef],
-      [q</a3/a>, 404, undef],
+      [q</a3/a>, 500, undef],
     ) {
       $p = $p->then (sub {
         return GET ($server, $x->[0]);
@@ -180,7 +180,7 @@ test {
       [q</a2/>, 410, undef],
       [q</a2/a>, 410, undef],
       [q</a3/>, 500, undef],
-      [q</a3/a>, 404, undef],
+      [q</a3/a>, 500, undef],
     ) {
       $p = $p->then (sub {
         return GET ($server, $x->[0]);
