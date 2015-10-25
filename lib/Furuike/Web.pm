@@ -752,7 +752,8 @@ sub check_htaccess ($$) {
               $current->{location} = $to;
             }
             $current->{status} = $directive->{status};
-            $current->{all} = 1 if $directive->{all_descendants};
+            $current->{all} = $directive->{all_descendants}
+                if $directive->{all_descendants};
           } elsif ($directive->{name} eq 'FuruikeRedirectTop') {
             $config->{redirect_top}->{$directive->{url}} = 1; 
          } elsif ($directive->{name} eq 'IndexIgnore' or
@@ -846,7 +847,7 @@ sub psgi_app ($$) {
           if ($current_virtual->{all}) {
             if (defined $current_virtual->{location}) {
               return redirect $http, $current_virtual->{status},
-                  $current_virtual->{location} . (join '/', map { percent_encode_c $_ } @path),
+                  $current_virtual->{location} . ($current_virtual->{all} eq 'ignore' ? '' : join '/', map { percent_encode_c $_ } @path),
                   'Redirect';
             } else {
               return error $http, $config, $docroot,
