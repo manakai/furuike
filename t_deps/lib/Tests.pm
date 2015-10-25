@@ -36,6 +36,8 @@ sub server (;$%) {
   my $server = Promised::Plackup->new;
   $server->{_temp} = my $temp = File::Temp->newdir;
   $server->envs->{FURUIKE_DOCUMENT_ROOT} = $temp;
+  ($server->envs->{FURUIKE_HTML_FOOTER_FILE} = path ("$temp/footer"))->spew_utf8 ($args{html_footer})
+      if defined $args{html_footer};
   $server->plackup ($root_path->child ('plackup'));
   $server->set_option ('--host' => '127.0.0.1');
   $server->set_option ('--app' => $root_path->child ('bin/server.psgi'));

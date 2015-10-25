@@ -577,6 +577,16 @@ These directives have no effect.  They are DEPRECATED.
 
 =back
 
+=head1 HTML FOOTER
+
+If a file name is specified as the environment variable
+C<FURUIKE_HTML_FOOTER_FILE> when the server is started, the content of
+the file is used as the I<HTML footer> of the server.
+
+If there is the HTML footer of the server, it is inserted at the end
+of the C<body> element when the server returns a C<text/html> document
+(from a file, or as a directory index view).
+
 =head1 DEPENDENCY
 
 Perl 5.14 or later is required.
