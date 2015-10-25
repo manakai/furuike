@@ -845,7 +845,9 @@ sub psgi_app ($$) {
           $current_virtual = $current_virtual->{children}->{$segment} ||= {};
           if ($current_virtual->{all}) {
             if (defined $current_virtual->{location}) {
-              return redirect $http, $current_virtual->{status}, $current_virtual->{location}, 'Redirect';
+              return redirect $http, $current_virtual->{status},
+                  $current_virtual->{location} . (join '/', map { percent_encode_c $_ } @path),
+                  'Redirect';
             } else {
               return error $http, $config, $docroot,
                   $current_virtual->{status}, 'Error', undef;
