@@ -430,10 +430,10 @@ test {
     for my $x (
       [q</~foo/bar>, 301, q<https://hoge/xy/>],
       [q</~foo/bar?fuga>, 301, q<https://hoge/xy/fuga>],
-      [q</~foo/bar?fuga%E4%BD%8D>, 301, q<https://hoge/xy/fuga%E4%BD%8D>],
+      [q</~foo/bar?fuga%B0%CC>, 301, q<https://hoge/xy/fuga%E4%BD%8D>],
       [q</~foo/bar?fuga=x>, 301, q<https://hoge/xy/>],
       [q</~foo/bar?mypage=abc>, 301, q<https://hoge/xy/abc>],
-      [q</~foo/bar?mypage=abc%E4%BD%8D>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
+      [q</~foo/bar?mypage=abc%B0%CC>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
       [q</~foo/bar?_charset_=utf-8&mypage=abc%E4%BD%8D>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
       [q</~foo/bar?_charset_=utf-8;mypage=abc%E4%BD%8D>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
       [q</~foo/bar?mypage=abc%E4%BD%8D&_charset_=utf-8>, 301, q<https://hoge/xy/abc%E4%BD%8D>],

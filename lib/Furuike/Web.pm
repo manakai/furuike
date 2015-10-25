@@ -944,9 +944,9 @@ sub psgi_app ($$$) {
               if ($current_virtual->{rule} eq 'mypage') {
                 # ...?mypage={mypage}&_charset_={charset}
                 my $query = $http->url->{query} // '';
-                $query = 'mypage=' . $query unless $query =~ /=/;
+                $query = '_charset_=euc-jp&mypage=' . $query unless $query =~ /=/;
                 my $q = {map { percent_decode_b $_ } map { split /=/, $_, 2 } split /[;&]/, $query};
-                my $charset = $q->{_charset_} // '';
+                my $charset = $q->{_charset_} // 'euc-jp';
                 $charset = 'utf-8' unless $charset eq 'euc-jp';
                 my $page = decode $charset, $q->{mypage} // '';
                 $url .= percent_encode_c $page;
