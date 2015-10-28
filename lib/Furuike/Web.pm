@@ -952,7 +952,7 @@ sub psgi_app ($$$) {
             if (defined $current_virtual->{location}) {
               my $url = $current_virtual->{location};
               if ($current_virtual->{rule} eq 'mypage' or
-                  $current_virtual->{rule} eq 'mypagepunyhtml') {
+                  $current_virtual->{rule} eq 'mypagepuny') {
                 # ...?mypage={mypage}&_charset_={charset}
                 my $query = $http->url->{query} // '';
                 $query = '_charset_=euc-jp&mypage=' . $query unless $query =~ /=/;
@@ -960,9 +960,10 @@ sub psgi_app ($$$) {
                 my $charset = $q->{_charset_} // 'euc-jp';
                 $charset = 'utf-8' unless $charset eq 'euc-jp';
                 my $page = decode $charset, $q->{mypage} // '';
-                if ($current_virtual->{rule} eq 'mypagepunyhtml') {
+                if ($current_virtual->{rule} eq 'mypagepuny') {
                   my $x = (percent_encode_c encode_punycode ($page));
-                  $url .= $x . '.html' if length $x;
+                  $x =~ s/%20/_/g;
+                  $url .= $x;
                 } else {
                   $url .= percent_encode_c $page;
                 }

@@ -466,26 +466,27 @@ test {
   my $c = shift;
   server ({
     '.htaccess' => q{
-      Redirect 301 /~foo/bar https://hoge/xy/{mypagepunyhtml}
+      Redirect 301 /~foo/bar https://hoge/xy/{mypagepuny}
     },
   })->then (sub {
     my $server = $_[0];
     my $p = Promise->resolve;
     for my $x (
       [q</~foo/bar>, 301, q<https://hoge/xy/>],
-      [q</~foo/bar?fuga>, 301, q<https://hoge/xy/fuga-.html>],
-      [q</~foo/bar?fuga%B0%CC>, 301, q<https://hoge/xy/fuga-8l6f.html>],
+      [q</~foo/bar?fuga>, 301, q<https://hoge/xy/fuga->],
+      [q</~foo/bar?fuga%B0%CC>, 301, q<https://hoge/xy/fuga-8l6f>],
       [q</~foo/bar?fuga=x>, 301, q<https://hoge/xy/>],
-      [q</~foo/bar?mypage=abc>, 301, q<https://hoge/xy/abc-.html>],
-      [q</~foo/bar?mypage=abc%B0%CC>, 301, q<https://hoge/xy/abc-u49d.html>],
-      [q</~foo/bar?_charset_=utf-8&mypage=abc%E4%BD%8D>, 301, q<https://hoge/xy/abc-u49d.html>],
-      [q</~foo/bar?_charset_=utf-8;mypage=abc%E4%BD%8D>, 301, q<https://hoge/xy/abc-u49d.html>],
-      [q</~foo/bar?mypage=abc%E4%BD%8D&_charset_=utf-8>, 301, q<https://hoge/xy/abc-u49d.html>],
-      [q</~foo/bar?_charset_=euc-jp&mypage=abc%B0%CC>, 301, q<https://hoge/xy/abc-u49d.html>],
-      [q</~foo/bar?mypage=abc%B0%CC&_charset_=euc-jp>, 301, q<https://hoge/xy/abc-u49d.html>],
-      [q</~foo/bar?_charset_=euc-jp&mypage=abc%2F%2F%B0%CC>, 301, q<https://hoge/xy/abc%2F%2F-n22h.html>],
-      [q</~foo/bar?_charset_=euc-jp&mypage=abc%2F%B0%CC>, 301, q<https://hoge/xy/abc%2F-8l6f.html>],
-      [q</~foo/bar?_charset_=euc-jp&mypage=abc%2B%B0%CC>, 301, q<https://hoge/xy/abc%2B-8l6f.html>],
+      [q</~foo/bar?mypage=abc>, 301, q<https://hoge/xy/abc->],
+      [q</~foo/bar?mypage=abc%B0%CC>, 301, q<https://hoge/xy/abc-u49d>],
+      [q</~foo/bar?_charset_=utf-8&mypage=abc%E4%BD%8D>, 301, q<https://hoge/xy/abc-u49d>],
+      [q</~foo/bar?_charset_=utf-8;mypage=abc%E4%BD%8D>, 301, q<https://hoge/xy/abc-u49d>],
+      [q</~foo/bar?mypage=abc%E4%BD%8D&_charset_=utf-8>, 301, q<https://hoge/xy/abc-u49d>],
+      [q</~foo/bar?_charset_=euc-jp&mypage=abc%B0%CC>, 301, q<https://hoge/xy/abc-u49d>],
+      [q</~foo/bar?mypage=abc%B0%CC&_charset_=euc-jp>, 301, q<https://hoge/xy/abc-u49d>],
+      [q</~foo/bar?_charset_=euc-jp&mypage=abc%2F%2F%B0%CC>, 301, q<https://hoge/xy/abc%2F%2F-n22h>],
+      [q</~foo/bar?_charset_=euc-jp&mypage=abc%2F%B0%CC>, 301, q<https://hoge/xy/abc%2F-8l6f>],
+      [q</~foo/bar?_charset_=euc-jp&mypage=abc%2B%B0%CC>, 301, q<https://hoge/xy/abc%2B-8l6f>],
+      [q</~foo/bar?_charset_=euc-jp&mypage=abc%2B%B0%CC%20>, 301, q<https://hoge/xy/abc%2B_-m22h>],
       [q</~foo/bar/>, 404, undef],
     ) {
       $p = $p->then (sub {
@@ -504,7 +505,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 15 * 2, name => 'Redirect {mypagepunyhtml}';
+} n => 16 * 2, name => 'Redirect {mypagepunyhtml}';
 
 test {
   my $c = shift;
