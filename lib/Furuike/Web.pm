@@ -863,6 +863,15 @@ sub psgi_app ($$$) {
               my $url = $current_virtual->{location};
               if ($current_virtual->{rule} eq 'sw2005') {
                 $url .= join '%2F%2F', map { percent_encode_c $_ } @path;
+              } elsif ($current_virtual->{rule} eq 'plusslash') {
+                my @p = split m{/}, $http->original_url->{path}, -1;
+                shift @p;
+                @p = splice @p, -@path;
+                $url .= join '/', map {
+                  my $x = $_;
+                  $x =~ s{\+}{%2F}g;
+                  $x;
+                } @p;
               } elsif (not $current_virtual->{all} eq 'ignore') {
                 $url .= join '/', map { percent_encode_c $_ } @path;
               }
