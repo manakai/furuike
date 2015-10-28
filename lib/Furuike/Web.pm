@@ -1,6 +1,7 @@
 package Furuike::Web;
 use strict;
 use warnings;
+use Web::DomainName::Punycode;
 use Wanage::HTTP;
 use Wanage::URL;
 use Encode;
@@ -950,7 +951,8 @@ sub psgi_app ($$$) {
           if (defined $current_virtual->{status}) {
             if (defined $current_virtual->{location}) {
               my $url = $current_virtual->{location};
-              if ($current_virtual->{rule} eq 'mypage') {
+              if ($current_virtual->{rule} eq 'mypage' or
+                  $current_virtual->{rule} eq 'mypagepunyhtml') {
                 # ...?mypage={mypage}&_charset_={charset}
                 my $query = $http->url->{query} // '';
                 $query = '_charset_=euc-jp&mypage=' . $query unless $query =~ /=/;
@@ -958,7 +960,12 @@ sub psgi_app ($$$) {
                 my $charset = $q->{_charset_} // 'euc-jp';
                 $charset = 'utf-8' unless $charset eq 'euc-jp';
                 my $page = decode $charset, $q->{mypage} // '';
-                $url .= percent_encode_c $page;
+                if ($current_virtual->{rule} eq 'mypagepunyhtml') {
+                  my $x = (percent_encode_c encode_punycode ($page));
+                  $url .= $x . '.html' if length $x;
+                } else {
+                  $url .= percent_encode_c $page;
+                }
               }
               return redirect $http, $current_virtual->{status}, $url, 'Redirect';
             } else {
