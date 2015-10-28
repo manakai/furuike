@@ -498,6 +498,42 @@ test {
   });
 } n => 7 * 2, name => 'Redirect {sw2005}';
 
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      Redirect 301 /~foo/bar/ https://hoge/xy/{plusslash}
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</~foo/bar>, 301, q<https://hoge/xy/>],
+      [q</~foo/bar/>, 301, q<https://hoge/xy/>],
+      [q</~foo/bar/abc>, 301, q<https://hoge/xy/abc>],
+      [q</~foo/bar/abc%E4%BD%8D>, 301, q<https://hoge/xy/abc%E4%BD%8D>],
+      [q</~foo/bar/abc+x+>, 301, q<https://hoge/xy/abc%2Fx%2F>],
+      [q</~foo/bar/abc%2Bx+>, 301, q<https://hoge/xy/abc%2Bx%2F>],
+      [q</~foo/bar/abc+/x+>, 301, q<https://hoge/xy/abc%2F/x%2F>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, $x->[1];
+          $x->[2] =~ s{^http://HOST}{'http://'.$server->get_host}e
+              if defined $x->[2];
+          is $res->header ('Location'), $x->[2];
+        } $c, name => [$x->[0], $x->[3]];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 7 * 2, name => 'Redirect {plusslash}';
+
 run_tests;
 
 =head1 LICENSE
