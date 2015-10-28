@@ -466,7 +466,7 @@ test {
   my $c = shift;
   server ({
     '.htaccess' => q{
-      Redirect 301 /~foo/bar https://hoge/xy/{mypagepunyhtml}
+      Redirect 301 /~foo/bar https://hoge/xy/{mypagepuny}
     },
   })->then (sub {
     my $server = $_[0];
@@ -486,6 +486,7 @@ test {
       [q</~foo/bar?_charset_=euc-jp&mypage=abc%2F%2F%B0%CC>, 301, q<https://hoge/xy/abc%2F%2F-n22h>],
       [q</~foo/bar?_charset_=euc-jp&mypage=abc%2F%B0%CC>, 301, q<https://hoge/xy/abc%2F-8l6f>],
       [q</~foo/bar?_charset_=euc-jp&mypage=abc%2B%B0%CC>, 301, q<https://hoge/xy/abc%2B-8l6f>],
+      [q</~foo/bar?_charset_=euc-jp&mypage=abc%2B%B0%CC%20>, 301, q<https://hoge/xy/abc%2B_-m22h>],
       [q</~foo/bar/>, 404, undef],
     ) {
       $p = $p->then (sub {
@@ -504,7 +505,7 @@ test {
       return $server->stop;
     })->then (sub { done $c; undef $c });
   });
-} n => 15 * 2, name => 'Redirect {mypagepunyhtml}';
+} n => 16 * 2, name => 'Redirect {mypagepunyhtml}';
 
 test {
   my $c = shift;
