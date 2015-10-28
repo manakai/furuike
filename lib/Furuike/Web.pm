@@ -961,7 +961,7 @@ sub psgi_app ($$$) {
                 $charset = 'utf-8' unless $charset eq 'euc-jp';
                 my $page = decode $charset, $q->{mypage} // '';
                 if ($current_virtual->{rule} eq 'mypagepuny') {
-                  $page =~ s{//+}{/}g;
+                  $page =~ s{/}{}g;
                   my $x = (percent_encode_c encode_punycode ($page));
                   $x =~ s/%20/_/g;
                   $url .= $x;
