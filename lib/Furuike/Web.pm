@@ -823,14 +823,21 @@ sub psgi_app ($$$) {
             if (defined $current_virtual->{location}) {
               my $url = $current_virtual->{location};
               if ($current_virtual->{rule} eq 'date') {
-                $url .= percent_encode_c percent_decode_c ($http->query_params->{date}->[0] // '');
+                my $x = $http->query_params->{date}->[0] // '';
+                if (length $x) {
+                  $url .= percent_encode_c percent_decode_c ($x);
+                } else {
+                  undef $url;
+                }
               }
-              return redirect $http, $current_virtual->{status}, $url, 'Redirect';
+              return redirect $http, $current_virtual->{status}, $url, 'Redirect'
+                  if defined $url;
             } else {
               return error $http, $config, $docroot,
                   $current_virtual->{status}, 'Error', undef;
             }
-          } elsif (not defined $p) {
+          }
+          if (not defined $p) {
             return error $http, $config, $docroot,
                 404, 'Directory not found', undef;
           }

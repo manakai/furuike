@@ -591,13 +591,13 @@ test {
     my $p = Promise->resolve;
     for my $x (
       [q</~foo/bar>, 301, q<https://hoge/xy/>, 301, q<http://HOST/2/~foo/bar/>],
-      [q</~foo/bar/>, 301, q<https://hoge/xy/>],
-      [q</~foo/bar/?foo=xx>, 301, q<https://hoge/xy/>],
-      [q</~foo/bar/?date=>, 301, q<https://hoge/xy/>],
+      [q</~foo/bar/>, 301, q<https://hoge/xy/>, 404, undef],
+      [q</~foo/bar/?foo=xx>, 301, q<https://hoge/xy/>, 404, undef],
+      [q</~foo/bar/?date=>, 301, q<https://hoge/xy/>, 404, undef],
       [q</~foo/bar/?date=124>, 301, q<https://hoge/xy/124>],
       [q</~foo/bar/?date=124%2B/>, 301, q<https://hoge/xy/124%2B%2F>],
       [q</~foo/bar/?date=1%E4%BD%8D>, 301, q<https://hoge/xy/1%E4%BD%8D>],
-      [q</~foo/bar/abc>, 301, q<https://hoge/xy/>, 404],
+      [q</~foo/bar/abc>, 301, q<https://hoge/xy/>, 404, undef],
     ) {
       $p = $p->then (sub {
         return GET ($server, $x->[0]);
