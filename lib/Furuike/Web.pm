@@ -821,7 +821,11 @@ sub psgi_app ($$$) {
           $current_virtual = $current_virtual->{children}->{$segment};
           if (defined $current_virtual->{status}) {
             if (defined $current_virtual->{location}) {
-              return redirect $http, $current_virtual->{status}, $current_virtual->{location}, 'Redirect';
+              my $url = $current_virtual->{location};
+              if ($current_virtual->{rule} eq 'date') {
+                $url .= percent_encode_c percent_decode_c ($http->query_params->{date}->[0] // '');
+              }
+              return redirect $http, $current_virtual->{status}, $url, 'Redirect';
             } else {
               return error $http, $config, $docroot,
                   $current_virtual->{status}, 'Error', undef;
@@ -873,9 +877,12 @@ sub psgi_app ($$$) {
                   $x =~ s{\+}{%2F}g;
                   $x;
                 } @p;
+              } elsif ($current_virtual->{rule} eq 'date') {
+                $url .= percent_encode_c percent_decode_c ($http->query_params->{date}->[0] // '');
               } elsif (not $current_virtual->{all} eq 'ignore') {
                 $url .= join '/', map { percent_encode_c $_ } @path;
               }
+
               return redirect $http, $current_virtual->{status},
                   $url, 'Redirect';
             } else {
