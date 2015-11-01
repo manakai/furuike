@@ -632,6 +632,48 @@ test {
   });
 } n => 8 * 4, name => 'Redirect {date}';
 
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      Redirect 301 /A/bar/ https://hoge/xy/{github}
+      Redirect 301 /B/bar/ https://hoge/xy/{bitbucket}
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</bar>, 301, q<https://hoge/xy/>, 301, q<https://hoge/xy/>],
+      [q</bar/>, 301, q<https://hoge/xy/>, 301, q<https://hoge/xy/>],
+      [q</bar/tree>, 301, q<https://hoge/xy/>, 301, q<https://hoge/xy/src>],
+      [q</bar/atom>, 301, q<https://hoge/xy/commits/master.atom>, 301, q<https://hoge/xy/rss>],
+      [q</bar/blob/HEAD:/hoge/fuga>, 301, q<https://hoge/xy/blob/master/hoge/fuga>, 301, q<https://hoge/xy/src/master/hoge/fuga>],
+      [q</bar/history/HEAD:/hoge/fuga>, 301, q<https://hoge/xy/commits/master/hoge/fuga>, 301, q<https://hoge/xy/history-node/master/hoge/fuga>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, qq{/A$x->[0]});
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, $x->[1];
+          is $res->header ('Location'), $x->[2];
+        } $c, name => ['/A', $x->[0]];
+      })->then (sub {
+        return GET ($server, qq{/B$x->[0]});
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, $x->[3];
+          is $res->header ('Location'), $x->[4];
+        } $c, name => ['/B', $x->[0]];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 6 * 4, name => 'Redirect {github}{bitbucket}';
+
 run_tests;
 
 =head1 LICENSE

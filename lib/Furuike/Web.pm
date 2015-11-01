@@ -886,6 +886,36 @@ sub psgi_app ($$$) {
                 } @p;
               } elsif ($current_virtual->{rule} eq 'date') {
                 $url .= percent_encode_c percent_decode_c ($http->query_params->{date}->[0] // '');
+              } elsif ($current_virtual->{rule} eq 'github') {
+                my $p = join '/', map { percent_encode_c $_ } @path;
+                if ($p eq '') {
+                  #
+                } elsif ($p eq 'tree') {
+                  #
+                } elsif ($p eq 'atom') {
+                  $url .= 'commits/master.atom';
+                } elsif ($p =~ s{^blob/([^%/]+)%3A/}{}) {
+                  my $branch = $1 eq 'HEAD' ? 'master' : $1;
+                  $url .= "blob/$branch/$p";
+                } elsif ($p =~ s{^history/([^%/]+)%3A/}{}) {
+                  my $branch = $1 eq 'HEAD' ? 'master' : $1;
+                  $url .= "commits/$branch/$p";
+                }
+              } elsif ($current_virtual->{rule} eq 'bitbucket') {
+                my $p = join '/', map { percent_encode_c $_ } @path;
+                if ($p eq '') {
+                  #
+                } elsif ($p eq 'tree') {
+                  $url .= 'src';
+                } elsif ($p eq 'atom') {
+                  $url .= 'rss';
+                } elsif ($p =~ s{^blob/([^%/]+)%3A/}{}) {
+                  my $branch = $1 eq 'HEAD' ? 'master' : $1;
+                  $url .= "src/$branch/$p";
+                } elsif ($p =~ s{^history/([^%/]+)%3A/}{}) {
+                  my $branch = $1 eq 'HEAD' ? 'master' : $1;
+                  $url .= "history-node/$branch/$p";
+                }
               } elsif (not $current_virtual->{all} eq 'ignore') {
                 $url .= join '/', map { percent_encode_c $_ } @path;
               }
