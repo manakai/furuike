@@ -37,6 +37,6 @@ Time::HiRes~1.9726
 Exporter~5.72
 HTTP::Date~6.02
 Carp~1.36
-Proc::Wait3~0.04
+Proc::Wait3~0.05
 MIME::Base64~3.15
 IO::AIO~4.32
