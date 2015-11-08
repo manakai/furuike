@@ -674,6 +674,52 @@ test {
   });
 } n => 6 * 4, name => 'Redirect {github}{bitbucket}';
 
+test {
+  my $c = shift;
+  server ({
+    '.htaccess' => q{
+      Redirect 302 /foo/ http://hoge/aa
+      Redirect 302 /foo2/ http://hoge/aa/
+      Redirect 302 /foo3/ http://hoge/aa/?zz
+      Redirect 302 /bar http://hoge/bb
+      Redirect 302 /bar2 http://hoge/bb?aa
+      RedirectMatch 302 /baz$ http://hoge/cc/
+      RedirectMatch 302 /baz2/$ http://hoge/cc2/
+    },
+  })->then (sub {
+    my $server = $_[0];
+    my $p = Promise->resolve;
+    for my $x (
+      [q</foo/?>, 302, q<http://hoge/aa?>],
+      [q</foo/?x>, 302, q<http://hoge/aa?x>],
+      [q</foo/bar?x>, 302, q<http://hoge/aabar?x>],
+      [q</foo/bar/?x>, 302, q<http://hoge/aabar/?x>],
+      [q</foo2/?>, 302, q<http://hoge/aa/?>],
+      [q</foo2/?x>, 302, q<http://hoge/aa/?x>],
+      [q</foo2/bar?x>, 302, q<http://hoge/aa/bar?x>],
+      [q</foo2/bar/?x>, 302, q<http://hoge/aa/bar/?x>],
+      [q</foo3/bar/?x>, 302, q<http://hoge/aa/bar/?zz>],
+      [q</bar?x>, 302, q<http://hoge/bb?x>],
+      [q</bar2?x>, 302, q<http://hoge/bb?aa>],
+      [q</baz?x>, 302, q<http://hoge/cc/?x>],
+      [q</baz2/?x>, 302, q<http://hoge/cc2/?x>],
+    ) {
+      $p = $p->then (sub {
+        return GET ($server, $x->[0]);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, $x->[1];
+          is $res->header ('Location'), $x->[2];
+        } $c, name => [$x->[0], $x->[3]];
+      });
+    }
+    return $p->then (sub {
+      return $server->stop;
+    })->then (sub { done $c; undef $c });
+  });
+} n => 13 * 2, name => 'Redirect query';
+
 run_tests;
 
 =head1 LICENSE
