@@ -822,6 +822,9 @@ sub psgi_app ($$$) {
           if (defined $current_virtual->{status}) {
             if (defined $current_virtual->{location}) {
               my $url = $current_virtual->{location};
+              my $suffix = '';
+              $suffix = $1 if $url =~ s{(#.*)\z}{}s;
+              $suffix = $1.$suffix if $url =~ s{(\?.*)\z}{}s;
               if ($current_virtual->{rule} eq 'date') {
                 my $x = $http->query_params->{date}->[0] // '';
                 if (length $x) {
@@ -829,6 +832,12 @@ sub psgi_app ($$$) {
                 } else {
                   undef $url;
                 }
+              }
+              if (defined $url) {
+                if (defined $http->url->{query} and not $suffix =~ /^\?/) {
+                  $url .= '?' . $http->url->{query};
+                }
+                $url .= $suffix;
               }
               return redirect $http, $current_virtual->{status}, $url, 'Redirect'
                   if defined $url;
@@ -873,6 +882,9 @@ sub psgi_app ($$$) {
           if ($current_virtual->{all}) {
             if (defined $current_virtual->{location}) {
               my $url = $current_virtual->{location};
+              my $suffix = '';
+              $suffix = $1 if $url =~ s{(#.*)\z}{}s;
+              $suffix = $1.$suffix if $url =~ s{(\?.*)\z}{}s;
               if ($current_virtual->{rule} eq 'sw2005') {
                 $url .= join '%2F%2F', map { percent_encode_c $_ } @path;
               } elsif ($current_virtual->{rule} eq 'plusslash') {
@@ -919,6 +931,10 @@ sub psgi_app ($$$) {
               } elsif (not $current_virtual->{all} eq 'ignore') {
                 $url .= join '/', map { percent_encode_c $_ } @path;
               }
+              if (defined $http->url->{query} and not $suffix =~ /^\?/) {
+                $url .= '?' . $http->url->{query};
+              }
+              $url .= $suffix;
 
               return redirect $http, $current_virtual->{status},
                   $url, 'Redirect';
@@ -995,6 +1011,9 @@ sub psgi_app ($$$) {
           if (defined $current_virtual->{status}) {
             if (defined $current_virtual->{location}) {
               my $url = $current_virtual->{location};
+              my $suffix = '';
+              $suffix = $1 if $url =~ s{(#.*)\z}{}s;
+              $suffix = $1.$suffix if $url =~ s{(\?.*)\z}{}s;
               if ($current_virtual->{rule} eq 'mypage' or
                   $current_virtual->{rule} eq 'mypagepuny') {
                 # ...?mypage={mypage}&_charset_={charset}
@@ -1013,6 +1032,10 @@ sub psgi_app ($$$) {
                   $url .= percent_encode_c $page;
                 }
               }
+              if (defined $http->url->{query} and not $suffix =~ /^\?/) {
+                $url .= '?' . $http->url->{query};
+              }
+              $url .= $suffix;
               return redirect $http, $current_virtual->{status}, $url, 'Redirect';
             } else {
               return error $http, $config, $docroot,
