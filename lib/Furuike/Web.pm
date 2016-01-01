@@ -227,7 +227,8 @@ sub conneg ($$$$$$) {
     $b->{name_priority} <=> $a->{name_priority} ||
     $b->{type_priority} <=> $a->{type_priority} ||
     $b->{lang_priority} <=> $a->{lang_priority} ||
-    $b->{charset_priority} <=> $a->{charset_priority};
+    $b->{charset_priority} <=> $a->{charset_priority} ||
+    $a->{file_name} cmp $b->{file_name};
   } @$files];
 
   return undef unless @$files;
