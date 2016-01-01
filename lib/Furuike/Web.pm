@@ -771,7 +771,7 @@ sub check_htaccess ($$) {
             $current->{rule} = $directive->{rule} // '';
           } elsif ($directive->{name} eq 'FuruikeRedirectTop') {
             $config->{redirect_top}->{$directive->{url}} = 1; 
-         } elsif ($directive->{name} eq 'IndexIgnore' or
+          } elsif ($directive->{name} eq 'IndexIgnore' or
                    $directive->{name} eq 'AddIcon' or
                    $directive->{name} eq 'RemoveHandler') {
             # ignored
