@@ -1,9 +1,9 @@
 Net::SSLeay~1.72
 ExtUtils::Constant~0.23
 Pod::Usage~1.68
-Pod::Text~4.05
+Pod::Text~4.06
 Test::NoWarnings~1.04
-Encode~2.79
+Encode~2.80
 IO::HTML~1.001
 Test::Builder~1.001014
 AnyEvent::Util
@@ -11,7 +11,7 @@ File::Path~2.12
 Time::Local~1.2300
 Term::ANSIColor~4.04
 parent~0.234
-AnyEvent~7.11
+AnyEvent~7.12
 Exporter::Lite~0.08
 Canary::Stability~2006
 AnyEvent::HTTP~2.22
