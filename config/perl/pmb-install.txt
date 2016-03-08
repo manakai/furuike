@@ -19,18 +19,17 @@ Compress::Raw::Zlib~2.069
 Compress::Raw::Bzip2~2.069
 HTTP::Response~6.11
 File::Temp~0.2304
-Path::Class~0.35
+Path::Class~0.36
 common::sense~3.74
 IO::Compress::Bzip2~2.069
 Unicode::Stringprep~1.105
 Scalar::Util~1.43
-File::Spec~3.62
 IO::Handle~1.28
 LWP::MediaTypes~6.02
 Encode::Locale~1.05
 Unicode::Normalize~1.25
 Socket~2.021
-Path::Tiny~0.076
+Path::Tiny~0.084
 URI~1.71
 Test::Tester~0.114
 Time::HiRes~1.9728
@@ -40,3 +39,4 @@ Carp~1.38
 Proc::Wait3~0.05
 MIME::Base64~3.15
 IO::AIO~4.33
+Cwd~3.62
