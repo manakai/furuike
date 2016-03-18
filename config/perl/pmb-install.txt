@@ -23,7 +23,7 @@ Path::Class~0.36
 common::sense~3.74
 IO::Compress::Bzip2~2.069
 Unicode::Stringprep~1.105
-Scalar::Util~1.43
+Scalar::Util~1.44
 IO::Handle~1.28
 LWP::MediaTypes~6.02
 Encode::Locale~1.05
