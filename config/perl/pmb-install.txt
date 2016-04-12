@@ -1,9 +1,9 @@
-Net::SSLeay~1.73
+Net::SSLeay~1.74
 ExtUtils::Constant~0.23
 Pod::Usage~1.68
 Pod::Text~4.07
 Test::NoWarnings~1.04
-Encode~2.83
+Encode~2.84
 IO::HTML~1.001
 Test::Builder~1.001014
 AnyEvent::Util
