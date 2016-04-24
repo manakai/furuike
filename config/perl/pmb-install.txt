@@ -32,7 +32,7 @@ Socket~2.021
 Path::Tiny~0.088
 URI~1.71
 Test::Tester~0.114
-Time::HiRes~1.9732
+Time::HiRes~1.9733
 Exporter~5.72
 HTTP::Date~6.02
 Carp~1.38
