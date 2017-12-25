@@ -1,5 +1,6 @@
 AnyEvent~7.14
 AnyEvent::HTTP~2.23
+AnyEvent::Util
 Canary::Stability~2012
 Carp~1.38
 Cwd~3.62
@@ -18,7 +19,7 @@ MIME::Base64~3.15
 Net::SSLeay~1.82
 Path::Class~0.37
 Path::Tiny~0.104
-Pod::Text~4.09
+Pod::Text~4.10
 Pod::Usage~1.69
 Proc::Wait3~0.05
 Scalar::Util~1.49
