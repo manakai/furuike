@@ -16,7 +16,7 @@ IO::HTML~1.001
 IO::Handle~1.28
 LWP::MediaTypes~6.02
 MIME::Base64~3.15
-Net::SSLeay~1.84
+Net::SSLeay~1.85
 Path::Class~0.37
 Path::Tiny~0.104
 Pod::Text~4.10
@@ -25,8 +25,8 @@ Proc::Wait3~0.05
 Scalar::Util~1.50
 Socket~2.027
 Term::ANSIColor~4.06
-Test::Builder~1.302133
-Time::HiRes~1.9754
+Test::More~1.302133
+Time::HiRes~1.9755
 Time::Local~1.25
 URI~1.73
 common::sense~3.74
