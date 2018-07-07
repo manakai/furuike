@@ -1,6 +1,6 @@
 AnyEvent~7.14
 AnyEvent::HTTP~2.23
-AnyEvent::Socket
+AnyEvent::Util
 Canary::Stability~2012
 Carp~1.38
 Cwd~3.74
@@ -10,7 +10,7 @@ Exporter::Lite~0.08
 File::Path~2.15
 File::Temp~0.2306
 HTTP::Date~6.02
-HTTP::Request~6.18
+HTTP::Response~6.18
 IO::AIO~4.4
 IO::HTML~1.001
 IO::Handle~1.39
@@ -30,4 +30,4 @@ Time::HiRes~1.9758
 Time::Local~1.28
 URI~1.74
 common::sense~3.74
-parent~0.236
+parent~0.237
