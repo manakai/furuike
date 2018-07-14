@@ -1,6 +1,6 @@
 AnyEvent~7.14
 AnyEvent::HTTP~2.23
-AnyEvent::Socket
+AnyEvent::IO
 Canary::Stability~2012
 Carp~1.38
 Cwd~3.74
@@ -10,7 +10,7 @@ Exporter::Lite~0.08
 File::Path~2.15
 File::Temp~0.2308
 HTTP::Date~6.02
-HTTP::Response~6.18
+HTTP::Request~6.18
 IO::AIO~4.4
 IO::HTML~1.001
 IO::Handle~1.39
@@ -18,7 +18,7 @@ LWP::MediaTypes~6.02
 MIME::Base64~3.15
 Net::SSLeay~1.85
 Path::Class~0.37
-Path::Tiny~0.104
+Path::Tiny~0.106
 Pod::Text~4.11
 Pod::Usage~1.69
 Proc::Wait3~0.05
