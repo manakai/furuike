@@ -1,5 +1,6 @@
 AnyEvent~7.14
 AnyEvent::HTTP~2.23
+AnyEvent::Util
 Canary::Stability~2012
 Carp~1.38
 Cwd~3.74
@@ -9,8 +10,8 @@ Exporter::Lite~0.08
 File::Path~2.15
 File::Temp~0.2308
 HTTP::Date~6.02
-HTTP::Request~6.18
-IO::AIO~4.4
+HTTP::Response~6.18
+IO::AIO~4.5
 IO::HTML~1.001
 IO::Handle~1.39
 LWP::MediaTypes~6.02
