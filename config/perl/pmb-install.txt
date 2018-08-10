@@ -10,7 +10,7 @@ Exporter::Lite~0.08
 File::Path~2.15
 File::Temp~0.2308
 HTTP::Date~6.02
-HTTP::Request~6.18
+HTTP::Response~6.18
 IO::AIO~4.5
 IO::HTML~1.001
 IO::Handle~1.39
@@ -25,7 +25,7 @@ Proc::Wait3~0.05
 Scalar::Util~1.50
 Socket~2.027
 Term::ANSIColor~4.06
-Test::Builder~1.302138
+Test::More~1.302138
 Time::HiRes~1.9758
 Time::Local~1.28
 URI~1.74
