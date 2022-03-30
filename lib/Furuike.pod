@@ -601,9 +601,14 @@ L<IO::AIO>, and L<Path::Tiny>.
 
 Wakaba <wakaba@suikawiki.org>.
 
+=head1 HISTORY
+
+This Git repository was located at <https://github.com/wakaba/furuike>
+and then transferred to the manakai project on 30 March, 2022.
+
 =head1 LICENSE
 
-Copyright 2015 Wakaba <wakaba@suikawiki.org>.
+Copyright 2015-2022 Wakaba <wakaba@suikawiki.org>.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
