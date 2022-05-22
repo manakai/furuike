@@ -1,6 +1,7 @@
 AnyEvent~7.17
 AnyEvent::FileLock~0.06
 AnyEvent::HTTP~2.25
+AnyEvent::Socket
 Canary::Stability~2013
 Carp~1.50
 Cwd~3.75
@@ -20,7 +21,7 @@ Method::WeakCallback~0.04
 Net::SSLeay~1.92
 Path::Class~0.37
 Path::Tiny~0.122
-Pod::Usage~2.01
+Pod::Usage~2.03
 Proc::Wait3~0.05
 Scalar::Util~1.62
 Socket~2.033
