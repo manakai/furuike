@@ -29,6 +29,6 @@ Test::Builder~1.302190
 Time::HiRes~1.9764
 Time::Local~1.30
 Time::Zone~2.24
-URI~5.10
+URI~5.11
 common::sense~3.75
 parent~0.238
