@@ -22,7 +22,7 @@ Path::Class~0.37
 Path::Tiny~0.122
 Pod::Usage~2.03
 Proc::Wait3~0.05
-Scalar::Util~1.62
+Scalar::Util~1.63
 Socket~2.035
 Term::ANSIColor~5.01
 Test::Builder~1.302191
