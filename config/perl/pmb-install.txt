@@ -12,7 +12,7 @@ Exporter::Lite~0.09
 File::Path~2.18
 File::Temp~0.2311
 HTTP::Date~6.05
-HTTP::Response~6.44
+HTTP::Request~6.44
 IO::AIO~4.79
 IO::HTML~1.004
 IO::Handle~1.48
@@ -33,4 +33,4 @@ Time::Local~1.30
 Time::Zone~2.24
 URI~5.17
 common::sense~3.75
-parent~0.238
+parent~0.239
