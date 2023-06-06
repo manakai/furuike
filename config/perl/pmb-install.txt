@@ -1,7 +1,7 @@
 AnyEvent~7.17
 AnyEvent::FileLock~0.06
 AnyEvent::HTTP~2.25
-AnyEvent::Socket
+AnyEvent::Util
 Canary::Stability~2013
 Carp~1.50
 Clone~0.46
@@ -12,7 +12,7 @@ Exporter::Lite~0.09
 File::Path~2.18
 File::Temp~0.2311
 HTTP::Date~6.05
-HTTP::Response~6.44
+HTTP::Request~6.44
 IO::AIO~4.8
 IO::HTML~1.004
 IO::Handle~1.51
@@ -25,9 +25,9 @@ Path::Tiny~0.144
 Pod::Usage~2.03
 Proc::Wait3~0.05
 Scalar::Util~1.63
-Socket~2.036
+Socket~2.037
 Term::ANSIColor~5.01
-Test::More~1.302195
+Test::Builder~1.302195
 Time::HiRes~1.9764
 Time::Local~1.35
 Time::Zone~2.24
